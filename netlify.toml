@@ -1,0 +1,10 @@
+[build]
+  command = "npm run build"
+
+# Next.js(App Router) 런타임 — SSR·ISR·API·next/og 지원.
+# Netlify가 Next.js를 감지하면 자동 설치하지만 명시해 둡니다.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[build.environment]
+  NODE_VERSION = "20"

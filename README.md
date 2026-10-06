@@ -80,10 +80,20 @@ src/
 - 운영 시 `layout.tsx` 의 `verification` 에 구글/네이버 소유확인 값 입력 후
   서치콘솔·서치어드바이저에 사이트맵 제출 + 수집요청
 
-## 배포
-- 권장: **Vercel** (Next.js ISR 네이티브). `NEXT_PUBLIC_SITE_URL` 등 env 설정.
-- Netlify 사용 시 `@netlify/plugin-nextjs` 필요. (기존 `.github/workflows/deploy.yml`
-  는 Astro `dist` 기준이므로 Next.js 배포 방식으로 교체해야 함)
+## 배포 (Netlify)
+`netlify.toml` 에 `@netlify/plugin-nextjs` 설정 포함 — Next.js SSR·ISR·API·next/og 모두 동작.
+
+1. Netlify → **Add new site → Import an existing project** → `conamx/jnc`
+2. **Branch to deploy** 를 `claude/confident-edison-vd8vp6` 로 지정하면 미리보기 배포 생성
+   (main 머지 전까지 기존 라이브 사이트는 영향 없음)
+3. env 없이도 시드 데이터로 바로 뜸. 운영 시 Site settings → Environment:
+   `DATABASE_URL`, `COUPANG_ACCESS_KEY/SECRET_KEY`, `CRON_SECRET`, `NEXT_PUBLIC_SITE_URL`
+4. 확인 후 PR #1을 main에 머지 → 기존 사이트 도메인에 반영
+
+### 크론(가격추적·핫딜수집)
+`vercel.json` 의 크론은 Vercel 전용입니다. Netlify에서는 둘 중 하나:
+- **Netlify Scheduled Functions** 로 `/api/cron/*` 호출, 또는
+- 외부 스케줄러(cron-job.org 등)가 `Authorization: Bearer ${CRON_SECRET}` 로 호출
 
 ## 법적 주의
 - **쿠팡 파트너스 고지 문구는 필수** — 푸터·상품 페이지에 포함되어 있음(`lib/site.ts`).
