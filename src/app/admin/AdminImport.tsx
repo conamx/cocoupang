@@ -29,6 +29,7 @@ export function AdminImport() {
     const j = (await res.json()) as { db: boolean };
     setDbOn(j.db);
     setAuthed(true);
+    setLog([]); // 이전 로그인 실패 문구가 남지 않도록
     try {
       sessionStorage.setItem(KEY, k);
     } catch {}
