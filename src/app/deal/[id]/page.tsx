@@ -5,6 +5,7 @@ import { getDeal, getDeals } from '@/lib/data';
 import { timeAgo } from '@/lib/format';
 import { site } from '@/lib/site';
 import { ReactionButtons } from '@/components/ReactionButtons';
+import { BookmarkButton } from '@/components/BookmarkButton';
 
 export const revalidate = 300;
 
@@ -47,14 +48,17 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
 
       {d.price && <div className="mt-4 text-2xl font-extrabold">{d.price}</div>}
 
-      <a
-        href={d.url}
-        target="_blank"
-        rel="noopener noreferrer nofollow sponsored"
-        className="mt-4 block w-full rounded-lg bg-blue-600 py-3 text-center text-sm font-bold text-white transition hover:bg-blue-700"
-      >
-        딜 보러가기 →
-      </a>
+      <div className="mt-4 flex items-center gap-2">
+        <a
+          href={d.url}
+          target="_blank"
+          rel="noopener noreferrer nofollow sponsored"
+          className="flex-1 rounded-lg bg-blue-600 py-3 text-center text-sm font-bold text-white transition hover:bg-blue-700"
+        >
+          딜 보러가기 →
+        </a>
+        <BookmarkButton type="deal" id={d.id} title={d.title} image={d.thumb} href={`/deal/${d.id}`} price={d.price} />
+      </div>
       <p className="mt-2 text-[11px] text-gray-400">
         외부 커뮤니티/판매처로 이동합니다. 일부 링크는 제휴 링크일 수 있습니다.
       </p>

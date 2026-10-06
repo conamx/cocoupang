@@ -8,6 +8,7 @@ import { PriceChart } from '@/components/PriceChart';
 import { ProductCard } from '@/components/ProductCard';
 import { ReactionButtons } from '@/components/ReactionButtons';
 import { PriceAlertForm } from '@/components/PriceAlertForm';
+import { BookmarkButton } from '@/components/BookmarkButton';
 
 export const revalidate = 3600;
 
@@ -95,14 +96,24 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             <Stat label="가격 기록" value={`${p.history.length}회`} />
           </div>
 
-          <a
-            href={affiliate}
-            target="_blank"
-            rel="noopener noreferrer nofollow sponsored"
-            className="mt-4 block w-full rounded-lg bg-blue-600 py-3 text-center text-sm font-bold text-white transition hover:bg-blue-700"
-          >
-            쿠팡에서 가격 확인하기
-          </a>
+          <div className="mt-4 flex items-center gap-2">
+            <a
+              href={affiliate}
+              target="_blank"
+              rel="noopener noreferrer nofollow sponsored"
+              className="flex-1 rounded-lg bg-blue-600 py-3 text-center text-sm font-bold text-white transition hover:bg-blue-700"
+            >
+              쿠팡에서 가격 확인하기
+            </a>
+            <BookmarkButton
+              type="product"
+              id={p.id}
+              title={p.name}
+              image={p.image}
+              href={`/coupang/${p.id}`}
+              price={won(p.currentPrice)}
+            />
+          </div>
           <p className="mt-2 text-[11px] text-gray-400">
             쿠팡 파트너스 활동의 일환으로 이에 따른 일정액의 수수료를 제공받습니다.
           </p>
