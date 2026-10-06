@@ -1,0 +1,73 @@
+import type { Deal } from '@/lib/types';
+
+const now = Date.now();
+const ago = (min: number) => new Date(now - min * 60000).toISOString();
+
+export const seedDeals: Deal[] = [
+  {
+    id: '7603808',
+    title: 'BHC 뿌링팝콘 12봉 (무료배송)',
+    source: '뽐뿌',
+    category: '식품',
+    price: '10,680원',
+    thumb: 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?w=600&q=70',
+    url: 'https://www.coupang.com/vp/products/7603808',
+    postedAt: ago(14),
+    likeCount: 23,
+  },
+  {
+    id: '7512512',
+    title: '바삭칩 바삭팝콘 스팸맛 55g 2개',
+    source: '펨코',
+    category: '식품',
+    price: '2,000원',
+    thumb: 'https://images.unsplash.com/photo-1600952841320-db92ec4047ca?w=600&q=70',
+    url: 'https://www.coupang.com/vp/products/7512512',
+    postedAt: ago(48),
+    likeCount: 11,
+  },
+  {
+    id: '9012233445',
+    title: '삼성 외장 SSD T7 1TB 역대가',
+    source: '루리웹',
+    category: '가전디지털',
+    price: '119,000원',
+    thumb: 'https://images.unsplash.com/photo-1597872200969-2b65d56bd16b?w=600&q=70',
+    url: 'https://www.coupang.com/vp/products/9012233445',
+    postedAt: ago(95),
+    likeCount: 57,
+  },
+  {
+    id: '8645132821',
+    title: '헤드앤숄더 두피케어 린스 1L 2개 ▼23%',
+    source: '뽐뿌',
+    category: '뷰티',
+    price: '13,100원',
+    thumb: 'https://images.unsplash.com/photo-1631729371254-42c2892f0e6e?w=600&q=70',
+    url: 'https://www.coupang.com/vp/products/8645132821',
+    postedAt: ago(130),
+    likeCount: 8,
+  },
+  {
+    id: '9100455667',
+    title: '리큐 진한겔 실내건조 세탁세제 2.1L 2개',
+    source: '뽐뿌',
+    category: '생활용품',
+    price: '15,800원',
+    thumb: 'https://images.unsplash.com/photo-1626806787461-102c1bfaaea1?w=600&q=70',
+    url: 'https://www.coupang.com/vp/products/9100455667',
+    postedAt: ago(210),
+    likeCount: 14,
+  },
+  {
+    id: '7326090',
+    title: 'BHC 뿌링팝콘 12봉 ▼17%',
+    source: '펨코',
+    category: '식품',
+    price: '10,800원',
+    thumb: 'https://images.unsplash.com/photo-1541592106381-b31e9677c0e5?w=600&q=70',
+    url: 'https://www.coupang.com/vp/products/7326090',
+    postedAt: ago(320),
+    likeCount: 5,
+  },
+];

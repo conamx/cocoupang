@@ -1,1 +1,0 @@
-const n=document.getElementById("scrollTop");window.addEventListener("scroll",()=>{n?.classList.toggle("visible",window.scrollY>400)});document.addEventListener("click",t=>{const e=document.getElementById("mobileMenu");e?.classList.contains("open")&&!e.contains(t.target)&&!t.target.closest(".nav-hamburger")&&e.classList.remove("open")});

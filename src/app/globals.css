@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light dark;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* 본문(마크다운형) 기본 타이포 */
+.prose-body h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 1.6em 0 0.6em;
+}
+.prose-body p {
+  margin: 0.8em 0;
+  line-height: 1.8;
+}
