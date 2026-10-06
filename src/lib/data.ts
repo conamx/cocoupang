@@ -3,6 +3,8 @@ import { seedProducts } from '@/lib/seed/products';
 import { seedDeals } from '@/lib/seed/deals';
 import { seedPosts } from '@/lib/seed/posts';
 import { seedBrands } from '@/lib/seed/brands';
+import { coupangCategories } from '@/lib/site';
+import { discountRate, dropRate } from '@/lib/format';
 
 /**
  * 데이터 접근 계층(Repository).
@@ -18,10 +20,48 @@ async function repo() {
   return dbData;
 }
 
-export async function getProducts(categoryId?: string): Promise<Product[]> {
-  if (useDb()) return (await repo()).getProducts(categoryId);
+// 인기순(수집 순위) → 최신순. 목록용이라 DB 모드에선 가격 이력을 싣지 않습니다.
+const byRank = (a: Product, b: Product) =>
+  (a.rank ?? 9999) - (b.rank ?? 9999) || b.updatedAt.localeCompare(a.updatedAt);
+
+export async function getProducts(categoryId?: string, limit?: number): Promise<Product[]> {
+  if (useDb()) return (await repo()).getProducts(categoryId, limit);
   const list = categoryId ? seedProducts.filter((p) => p.categoryId === categoryId) : seedProducts;
-  return [...list].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const sorted = [...list].sort(byRank);
+  return limit ? sorted.slice(0, limit) : sorted;
+}
+
+export type ProductSections = {
+  goldbox: Product[]; // 오늘의 골드박스 특가
+  lowest: Product[]; // 지금 역대최저가
+  drops: Product[]; // 가격 하락 TOP
+  byCategory: { id: string; label: string; products: Product[] }[]; // 카테고리별 인기
+};
+
+/** 홈 상단 상품 섹션 — 상품을 최대한 많이, 클릭하고 싶은 순서로 노출 */
+export async function getProductSections(perSection = 12, perCategory = 6): Promise<ProductSections> {
+  if (useDb()) return (await repo()).getProductSections(perSection, perCategory);
+  const all = [...seedProducts].sort(byRank);
+  return {
+    goldbox: all.filter((p) => p.source === 'goldbox').slice(0, perSection),
+    lowest: all
+      .filter((p) => p.currentPrice <= p.lowestPrice && p.highestPrice > p.lowestPrice)
+      .sort((a, b) => discountRate(b) - discountRate(a))
+      .slice(0, perSection),
+    drops: all
+      .filter((p) => p.prevPrice && p.prevPrice > p.currentPrice)
+      .sort((a, b) => dropRate(b) - dropRate(a))
+      .slice(0, perSection),
+    byCategory: coupangCategories
+      .map((c) => ({ ...c, products: all.filter((p) => p.categoryId === c.id).slice(0, perCategory) }))
+      .filter((c) => c.products.length > 0),
+  };
+}
+
+/** 사이트맵용 (id·수정일만) */
+export async function getProductIndex(): Promise<{ id: string; updatedAt: string }[]> {
+  if (useDb()) return (await repo()).getProductIndex();
+  return seedProducts.map((p) => ({ id: p.id, updatedAt: p.updatedAt }));
 }
 
 export async function getProduct(id: string): Promise<Product | null> {

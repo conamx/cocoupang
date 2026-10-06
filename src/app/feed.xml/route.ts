@@ -1,7 +1,7 @@
 import { site } from '@/lib/site';
 import { getDeals } from '@/lib/data';
 
-export const revalidate = 300;
+export const revalidate = 3600;
 
 function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

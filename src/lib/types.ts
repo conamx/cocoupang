@@ -14,6 +14,11 @@ export type Product = {
   lowestPrice: number;
   highestPrice: number;
   vendorItemId?: string;
+  affiliateUrl?: string;
+  isRocket?: boolean;
+  source?: 'best' | 'goldbox' | 'search' | 'manual';
+  rank?: number;
+  prevPrice?: number;
   updatedAt: string;
   history: PricePoint[];
 };

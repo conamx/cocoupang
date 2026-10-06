@@ -83,11 +83,16 @@ const raw: Omit<Product, 'currentPrice' | 'lowestPrice' | 'highestPrice'>[] = [
   },
 ];
 
-export const seedProducts: Product[] = raw.map((p) => {
+export const seedProducts: Product[] = raw.map((p, i) => {
   const prices = p.history.map((h) => h.price);
+  const changed = [...prices].reverse().find((x) => x !== prices[prices.length - 1]);
   return {
     ...p,
+    source: i < 3 ? 'goldbox' : 'best', // 데모: 앞 3개를 오늘의 골드박스로
+    rank: i + 1,
+    isRocket: i % 2 === 0,
     currentPrice: prices[prices.length - 1],
+    prevPrice: changed,
     lowestPrice: Math.min(...prices),
     highestPrice: Math.max(...prices),
   };

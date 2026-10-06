@@ -15,6 +15,13 @@
       "when": 1791266391689,
       "tag": "0001_illegal_rictor",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791271887953,
+      "tag": "0002_watery_otto_octavius",
+      "breakpoints": true
     }
   ]
 }

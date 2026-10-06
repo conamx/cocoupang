@@ -1,12 +1,12 @@
 import type { MetadataRoute } from 'next';
 import { site, coupangCategories } from '@/lib/site';
-import { getProducts, getDeals, getPosts, getBrands } from '@/lib/data';
+import { getProductIndex, getDeals, getPosts, getBrands } from '@/lib/data';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = site.url;
   const [products, deals, posts, brands] = await Promise.all([
-    getProducts(),
-    getDeals(),
+    getProductIndex(),
+    getDeals(5000),
     getPosts(),
     getBrands(),
   ]);
@@ -14,6 +14,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticUrls: MetadataRoute.Sitemap = [
     { url: `${base}/`, changeFrequency: 'hourly', priority: 1 },
     { url: `${base}/coupang`, changeFrequency: 'daily', priority: 0.9 },
+    { url: `${base}/deal`, changeFrequency: 'hourly', priority: 0.8 },
     { url: `${base}/travel`, changeFrequency: 'weekly', priority: 0.7 },
     { url: `${base}/blog`, changeFrequency: 'weekly', priority: 0.7 },
   ];
@@ -21,7 +22,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [
     ...staticUrls,
     ...coupangCategories.map((c) => ({
-      url: `${base}/coupang?cat=${c.id}`,
+      url: `${base}/coupang/category/${c.id}`,
       changeFrequency: 'daily' as const,
       priority: 0.7,
     })),

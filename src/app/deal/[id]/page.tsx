@@ -8,10 +8,10 @@ import { ReactionButtons } from '@/components/ReactionButtons';
 import { BookmarkButton } from '@/components/BookmarkButton';
 import { Comments } from '@/components/Comments';
 
-export const revalidate = 300;
+export const revalidate = 3600;
 
 export async function generateStaticParams() {
-  const deals = await getDeals();
+  const deals = await getDeals(50); // 나머지는 첫 방문 때 생성
   return deals.map((d) => ({ id: d.id }));
 }
 

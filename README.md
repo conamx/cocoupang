@@ -1,7 +1,7 @@
 # 셰어인포 (shareinfo.co.kr)
 
 뽐뿌·펨코 등 **커뮤니티 핫딜 + 쿠팡 최저가·가격 변동 추이**를 모아보는 정보 서비스.
-딜바고(dealbago.com)형 구조를 **Next.js 15 (App Router)** 로 구현한 Phase 1 스캐폴드입니다.
+딜바고(dealbago.com)형 구조를 **Next.js 15 (App Router)** 로 구현한 사이트입니다.
 
 > 이전 Astro 정적 블로그는 전면 교체되었습니다.
 
@@ -27,7 +27,9 @@ src/
   app/
     layout.tsx              공통 레이아웃 · Organization/WebSite JSON-LD · 다크모드
     page.tsx                핫딜 피드 + 역대최저가 (/)
-    coupang/page.tsx        쿠팡 최저가 카테고리 (/coupang?cat=)
+    coupang/page.tsx        쿠팡 최저가 전체 (/coupang)
+    coupang/category/[cat]  카테고리별 인기·최저가 (정적)
+    deal/page.tsx           핫딜 모음 (/deal)
     coupang/[id]/page.tsx   ★상품 가격추적 상세(그래프·이력·Product JSON-LD·제휴버튼)
     deal/[id]/page.tsx      핫딜 상세
     blog/ , blog/[slug]     정보 콘텐츠(SEO 롱테일 보강)
@@ -35,11 +37,12 @@ src/
     search/page.tsx         통합 검색(noindex)
     sitemap.ts robots.ts    SEO
     feed.xml/route.ts       RSS
-    api/cron/update-prices  가격추적 크론 훅
+    api/revalidate          수집 후 캐시 갱신 훅
   components/               헤더·탭바·푸터·가격그래프·카드
   lib/
     data.ts                 ★데이터 접근 계층(시드 ↔ DB 교체 지점)
     coupang.ts              쿠팡 파트너스 Open API 클라이언트(서명 포함)
+    sync/                   ★쿠팡 수집·가격 갱신, 검색 키워드 목록
     seed/                   데모용 시드 데이터
   db/schema.ts              ★Drizzle(Postgres) 실제 데이터 모델
 ```
@@ -50,28 +53,40 @@ src/
 
 ## 운영 전환 (시드 → 실데이터)
 
-1. **DB 준비** (Supabase/Neon) → `.env` 의 `DATABASE_URL` 설정
+1. **DB 준비** (Supabase/Neon 무료) → `DATABASE_URL` 설정 후
    ```bash
-   npm run db:generate && npm run db:migrate
+   DATABASE_URL=... npm run db:migrate
    ```
-2. **쿠팡 파트너스 키** 발급(partners.coupang.com) → `.env` 의
-   `COUPANG_ACCESS_KEY` / `COUPANG_SECRET_KEY` 설정
-3. `src/lib/data.ts` 의 각 함수를 `src/db/schema.ts` 기반 Drizzle 쿼리로 교체,
-   `DATA_SOURCE=db` 로 전환 (UI는 그대로 동작)
-4. **가격 추적 크론**: 스케줄러가 매일 아래를 호출
-   ```
-   GET /api/cron/update-prices
-   Authorization: Bearer ${CRON_SECRET}
-   ```
-   `src/lib/coupang.ts` 의 `fetchProductPrice` 를 파트너스 상품 API로 구현
+2. **쿠팡 파트너스 키** 발급(partners.coupang.com) → `COUPANG_ACCESS_KEY` / `COUPANG_SECRET_KEY`
+3. Netlify 환경변수: `DATA_SOURCE=db`, `DATABASE_URL`, `CRON_SECRET`, `NEXT_PUBLIC_SITE_URL`
+4. GitHub 저장소 **Settings → Secrets and variables → Actions** 에 `DATABASE_URL`,
+   `COUPANG_ACCESS_KEY`, `COUPANG_SECRET_KEY`, `CRON_SECRET`, `NEXT_PUBLIC_SITE_URL` 등록
+5. Actions 탭 → **Sync** → Run workflow(coupang) 로 첫 수집 → 상품 수백 개 자동 등록
 
-### 수집 파이프라인 로드맵
-- **Phase 1 (현재)**: 쿠팡 상품 가격추적 + 핫딜/블로그/할인코드 UI
-- **Phase 2**: 커뮤니티 핫딜 수집기(RSS/크롤 → `deals` 적재, 5~15분 주기)
-- **Phase 3**: 할인코드 자동 갱신 + 기존 콘텐츠 이전
-- **Phase 4**: 좋아요/댓글/가격알림/PWA (`reactions`·`priceAlerts` 테이블 이미 정의)
+### 수집 구조 (Netlify 크레딧을 쓰지 않음)
+```
+GitHub Actions (.github/workflows/sync.yml)
+  ├ 매일 07:40  npm run sync:coupang  쿠팡 베스트 15개 카테고리 × 50 + 골드박스 + 키워드 검색
+  │                                   → 신규 상품 자동 등록, 가격·역대최저/최고·이력 갱신
+  └ 매시 7분    npm run sync:deals    커뮤니티 핫딜 RSS
+        ↓ 끝나면 POST /api/revalidate (CRON_SECRET) → 바뀐 페이지만 재생성
+Netlify: 정적/ISR 페이지 서빙만 (상품·카테고리 1일, 홈·핫딜 1시간 캐시)
+```
+- 파트너스 API에는 "상품 ID로 현재가 조회"가 없어서, **베스트·골드박스·검색 결과를 매일 받아 갱신**합니다.
+- 노출할 키워드는 `src/lib/sync/keywords.ts`, 카테고리는 `src/lib/site.ts` 에서 추가.
+- 구매 링크는 API가 주는 수수료 추적 링크(`affiliateUrl`)를 그대로 사용합니다.
 
----
+### 무료 플랜 비용 가이드
+| 항목 | 어디서 | 비용 |
+|---|---|---|
+| 가격·핫딜 수집 | GitHub Actions | 공개 저장소 무료 / 비공개는 월 2,000분 무료 중 약 750분 사용 |
+| DB | Supabase·Neon 무료 | 상품 1,000개 × 1년 이력 ≈ 수십 MB |
+| 페이지 서빙 | Netlify(월 300크레딧) | 배포 1회 15 · 대역폭 1GB당 10 · 요청 1만 건당 3 · 함수 실행 GB-시간당 5 |
+
+- **배포가 가장 비쌉니다(1회 15크레딧 → 월 20회면 소진).** 데이터는 DB로 들어가므로
+  가격이 바뀌어도 재배포가 필요 없습니다. main 머지는 몰아서 하세요.
+- 이미지는 쿠팡 CDN에서 직접 로드(Netlify 대역폭 미사용).
+- 크레딧이 모자라기 시작하면(트래픽 증가 = 좋은 신호) Netlify 유료 플랜 또는 Cloudflare 이전을 검토.
 
 ## SEO 설계 요점
 - 상품 페이지마다 **Product/Offer + BreadcrumbList JSON-LD**, 레이아웃에 **WebSite SearchAction**
@@ -87,13 +102,13 @@ src/
 2. **Branch to deploy** 를 `claude/confident-edison-vd8vp6` 로 지정하면 미리보기 배포 생성
    (main 머지 전까지 기존 라이브 사이트는 영향 없음)
 3. env 없이도 시드 데이터로 바로 뜸. 운영 시 Site settings → Environment:
-   `DATABASE_URL`, `COUPANG_ACCESS_KEY/SECRET_KEY`, `CRON_SECRET`, `NEXT_PUBLIC_SITE_URL`
+   `DATA_SOURCE=db`, `DATABASE_URL`, `CRON_SECRET`, `NEXT_PUBLIC_SITE_URL`
+   (쿠팡 키는 GitHub Actions 에만 있으면 됨)
 4. 확인 후 PR #1을 main에 머지 → 기존 사이트 도메인에 반영
 
 ### 크론(가격추적·핫딜수집)
-`vercel.json` 의 크론은 Vercel 전용입니다. Netlify에서는 둘 중 하나:
-- **Netlify Scheduled Functions** 로 `/api/cron/*` 호출, 또는
-- 외부 스케줄러(cron-job.org 등)가 `Authorization: Bearer ${CRON_SECRET}` 로 호출
+GitHub Actions 가 담당합니다(위 "수집 구조" 참고). **schedule 은 main 브랜치에 머지된 뒤부터** 동작하며,
+그 전에는 Actions 탭에서 수동 실행할 수 있습니다.
 
 ## 법적 주의
 - **쿠팡 파트너스 고지 문구는 필수** — 푸터·상품 페이지에 포함되어 있음(`lib/site.ts`).

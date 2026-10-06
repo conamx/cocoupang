@@ -4,6 +4,7 @@ import {
   integer,
   timestamp,
   serial,
+  boolean,
   index,
   primaryKey,
 } from 'drizzle-orm/pg-core';
@@ -17,12 +18,20 @@ export const products = pgTable('products', {
   categoryLabel: text('category_label').notNull(),
   option: text('option'),
   vendorItemId: text('vendor_item_id'),
+  // 파트너스 API가 돌려주는 수수료 추적 링크(link.coupang.com). 없으면 상품 URL로 대체.
+  affiliateUrl: text('affiliate_url'),
+  isRocket: boolean('is_rocket').default(false).notNull(),
+  // 수집 경로: best(카테고리 베스트) | goldbox(오늘의 특가) | search(키워드) | manual
+  source: text('source').default('manual').notNull(),
+  rank: integer('rank'), // 수집 시점의 순위(작을수록 인기)
   currentPrice: integer('current_price').notNull(),
+  prevPrice: integer('prev_price'), // 직전 관측가 — 가격 하락률 계산용
   lowestPrice: integer('lowest_price').notNull(),
   highestPrice: integer('highest_price').notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (t) => ({
   byCategory: index('products_category_idx').on(t.categoryId),
+  bySource: index('products_source_idx').on(t.source, t.updatedAt),
 }));
 
 // ─── 가격 이력 ──────────────────────────────────────────────
@@ -60,7 +69,7 @@ export const posts = pgTable('posts', {
   date: timestamp('date', { withTimezone: true }).notNull(),
 });
 
-// ─── 유저 상호작용 (Phase 4) ────────────────────────────────
+// ─── 유저 상호작용 ────────────────────────────────
 export const reactions = pgTable('reactions', {
   targetType: text('target_type').notNull(), // 'deal' | 'product'
   targetId: text('target_id').notNull(),
@@ -81,12 +90,3 @@ export const comments = pgTable('comments', {
 }, (t) => ({
   byTarget: index('comments_target_idx').on(t.targetType, t.targetId, t.createdAt),
 }));
-
-export const priceAlerts = pgTable('price_alerts', {
-  id: serial('id').primaryKey(),
-  productId: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
-  targetPrice: integer('target_price').notNull(),
-  channel: text('channel').notNull(), // 'email' | 'push'
-  destination: text('destination').notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});

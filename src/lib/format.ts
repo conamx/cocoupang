@@ -22,9 +22,21 @@ export function timeAgo(iso: string): string {
   return `${day}일 전`;
 }
 
-// 쿠팡 파트너스 딥링크 생성 (실제 서명 호출은 lib/coupang.ts 참고).
-// 키가 없으면 원본 상품 URL 그대로 반환합니다.
-export function coupangLink(productId: string, vendorItemId?: string): string {
-  const base = `https://www.coupang.com/vp/products/${productId}`;
-  return vendorItemId ? `${base}?vendorItemId=${vendorItemId}` : base;
+// 직전 관측가 대비 하락률(%)
+export function dropRate(p: { currentPrice: number; prevPrice?: number }): number {
+  if (!p.prevPrice || p.prevPrice <= p.currentPrice) return 0;
+  return Math.round(((p.prevPrice - p.currentPrice) / p.prevPrice) * 100);
+}
+
+// 역대 최고가 대비 할인율(%)
+export function discountRate(p: { currentPrice: number; highestPrice: number }): number {
+  if (p.highestPrice <= p.currentPrice) return 0;
+  return Math.round(((p.highestPrice - p.currentPrice) / p.highestPrice) * 100);
+}
+
+// 구매 링크: 파트너스 API가 준 수수료 추적 링크 우선, 없으면 원본 상품 URL.
+export function coupangLink(p: { id: string; vendorItemId?: string; affiliateUrl?: string }): string {
+  if (p.affiliateUrl) return p.affiliateUrl;
+  const base = `https://www.coupang.com/vp/products/${p.id}`;
+  return p.vendorItemId ? `${base}?vendorItemId=${p.vendorItemId}` : base;
 }

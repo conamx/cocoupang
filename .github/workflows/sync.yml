@@ -1,0 +1,49 @@
+name: Sync (쿠팡 가격·핫딜 수집)
+
+# 수집은 Netlify가 아니라 GitHub Actions 러너에서 돌립니다 → Netlify 크레딧 0.
+# ⚠ schedule 은 기본 브랜치(main)에 이 파일이 있어야 동작합니다.
+# 저장소 Settings → Secrets and variables → Actions 에 등록:
+#   DATABASE_URL, COUPANG_ACCESS_KEY, COUPANG_SECRET_KEY, CRON_SECRET, NEXT_PUBLIC_SITE_URL
+on:
+  schedule:
+    - cron: '40 22 * * *' # 매일 07:40 KST — 골드박스(07:30 갱신) 직후 쿠팡 가격 수집
+    - cron: '7 * * * *' # 매시 7분 — 커뮤니티 핫딜 수집
+  workflow_dispatch:
+    inputs:
+      job:
+        description: '실행할 작업'
+        type: choice
+        options: [coupang, deals]
+        default: coupang
+
+concurrency:
+  group: sync-${{ github.event.schedule || inputs.job }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      COUPANG_ACCESS_KEY: ${{ secrets.COUPANG_ACCESS_KEY }}
+      COUPANG_SECRET_KEY: ${{ secrets.COUPANG_SECRET_KEY }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+      JOB: ${{ inputs.job || (github.event.schedule == '40 22 * * *' && 'coupang' || 'deals') }}
+    steps:
+      - name: DB 미설정이면 건너뛰기
+        id: guard
+        run: |
+          if [ -z "$DATABASE_URL" ]; then echo "DATABASE_URL secret 없음 — 건너뜀"; echo "skip=1" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/checkout@v4
+        if: steps.guard.outputs.skip != '1'
+      - uses: actions/setup-node@v4
+        if: steps.guard.outputs.skip != '1'
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - if: steps.guard.outputs.skip != '1'
+        run: npm ci --no-audit --no-fund
+      - if: steps.guard.outputs.skip != '1'
+        run: npm run sync:$JOB

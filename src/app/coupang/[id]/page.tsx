@@ -7,14 +7,15 @@ import { site } from '@/lib/site';
 import { PriceChart } from '@/components/PriceChart';
 import { ProductCard } from '@/components/ProductCard';
 import { ReactionButtons } from '@/components/ReactionButtons';
-import { PriceAlertForm } from '@/components/PriceAlertForm';
 import { BookmarkButton } from '@/components/BookmarkButton';
 import { Comments } from '@/components/Comments';
 
-export const revalidate = 3600;
+// 가격은 하루 1회 수집 → 수집 직후 /api/revalidate 로 갱신. 평소엔 하루 캐시(크레딧 절약).
+export const revalidate = 86400;
 
 export async function generateStaticParams() {
-  const products = await getProducts();
+  // 인기 상위만 빌드 때 생성, 나머지는 첫 방문 시 생성 후 캐시 (빌드 시간·크레딧 절약)
+  const products = await getProducts(undefined, 100);
   return products.map((p) => ({ id: p.id }));
 }
 
@@ -39,7 +40,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   const p = await getProduct(id);
   if (!p) notFound();
   const related = await getRelatedProducts(id);
-  const affiliate = coupangLink(p.id, p.vendorItemId);
+  const affiliate = coupangLink(p);
 
   const productJsonLd = {
     '@context': 'https://schema.org',
@@ -60,7 +61,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
     '@type': 'BreadcrumbList',
     itemListElement: [
       { '@type': 'ListItem', position: 1, name: '쿠팡최저가', item: `${site.url}/coupang` },
-      { '@type': 'ListItem', position: 2, name: p.categoryLabel, item: `${site.url}/coupang?cat=${p.categoryId}` },
+      { '@type': 'ListItem', position: 2, name: p.categoryLabel, item: `${site.url}/coupang/category/${p.categoryId}` },
       { '@type': 'ListItem', position: 3, name: p.name, item: `${site.url}/coupang/${p.id}` },
     ],
   };
@@ -73,7 +74,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       <nav aria-label="breadcrumb" className="mb-3 flex items-center gap-1 text-xs text-gray-400">
         <Link href="/coupang" className="hover:text-blue-600">쿠팡최저가</Link>
         <span>›</span>
-        <Link href={`/coupang?cat=${p.categoryId}`} className="hover:text-blue-600">{p.categoryLabel}</Link>
+        <Link href={`/coupang/category/${p.categoryId}`} className="hover:text-blue-600">{p.categoryLabel}</Link>
       </nav>
 
       <div className="mb-6 grid gap-5 md:grid-cols-2">
@@ -90,6 +91,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           {p.option && <p className="mt-2 text-sm text-gray-500">옵션: {p.option}</p>}
 
           <div className="mt-3 text-3xl font-extrabold">{won(p.currentPrice)}</div>
+          <BuyVerdict current={p.currentPrice} lowest={p.lowestPrice} highest={p.highestPrice} />
 
           <div className="mt-4 grid grid-cols-3 gap-2 text-center">
             <Stat label="역대 최저가" value={won(p.lowestPrice)} accent />
@@ -104,7 +106,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               rel="noopener noreferrer nofollow sponsored"
               className="flex-1 rounded-lg bg-blue-600 py-3 text-center text-sm font-bold text-white transition hover:bg-blue-700"
             >
-              쿠팡에서 가격 확인하기
+              쿠팡에서 최저가로 구매하기
             </a>
             <BookmarkButton
               type="product"
@@ -119,7 +121,6 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             쿠팡 파트너스 활동의 일환으로 이에 따른 일정액의 수수료를 제공받습니다.
           </p>
 
-          <PriceAlertForm productId={p.id} currentPrice={p.currentPrice} />
         </div>
       </div>
 
@@ -157,6 +158,15 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         </div>
       </section>
 
+      <a
+        href={affiliate}
+        target="_blank"
+        rel="noopener noreferrer nofollow sponsored"
+        className="mb-8 block rounded-lg bg-blue-600 py-3 text-center text-sm font-bold text-white transition hover:bg-blue-700"
+      >
+        지금 {won(p.currentPrice)} — 쿠팡에서 바로 보기
+      </a>
+
       <section className="mb-8 flex flex-col items-center gap-2 border-t border-gray-100 pt-6 dark:border-gray-800">
         <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">이 상품, 어땠나요?</p>
         <ReactionButtons targetType="product" targetId={p.id} />
@@ -188,4 +198,24 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
       </p>
     </div>
   );
+}
+
+// 지금 사도 될까? — 역대 최저/최고가 대비 현재 위치를 한 줄로
+function BuyVerdict({ current, lowest, highest }: { current: number; lowest: number; highest: number }) {
+  let text: string;
+  let tone: string;
+  if (highest === lowest) {
+    text = '가격 추적을 시작한 상품이에요 · 매일 가격이 기록됩니다';
+    tone = 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300';
+  } else if (current <= lowest) {
+    text = '지금이 역대 최저가예요 · 구매 추천';
+    tone = 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300';
+  } else if (current - lowest <= (highest - lowest) * 0.3) {
+    text = `역대 최저가보다 ${won(current - lowest)} 비싸요 · 괜찮은 가격`;
+    tone = 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300';
+  } else {
+    text = `역대 최저가보다 ${won(current - lowest)} 비싸요 · 가격 하락을 기다려 보세요`;
+    tone = 'bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300';
+  }
+  return <p className={`mt-2 inline-block rounded-md px-2.5 py-1 text-xs font-semibold ${tone}`}>{text}</p>;
 }
