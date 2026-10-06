@@ -1,10 +1,18 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { site } from '@/lib/site';
 import { ThemeScript } from '@/components/ThemeScript';
 import { SiteHeader } from '@/components/SiteHeader';
 import { SiteFooter } from '@/components/SiteFooter';
 import { MobileTabBar } from '@/components/MobileTabBar';
+import { Analytics } from '@/components/Analytics';
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#0a0a0a' },
+  ],
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(site.url),
@@ -53,6 +61,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ko" suppressHydrationWarning className="h-full">
       <head>
         <ThemeScript />
+        <Analytics />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }} />
       </head>
       <body className="flex min-h-full flex-col bg-gray-50 text-gray-900 dark:bg-black dark:text-gray-100">
