@@ -22,10 +22,16 @@ export function timeAgo(iso: string): string {
   return `${day}일 전`;
 }
 
-// 직전 관측가 대비 하락률(%)
+// 전일대비 변동률(%) — 양수 상승, 음수 하락, 전일 기록이 없으면 null
+export function dayChange(p: { currentPrice: number; prevPrice?: number }): number | null {
+  if (!p.prevPrice) return null;
+  return Math.round(((p.currentPrice - p.prevPrice) / p.prevPrice) * 1000) / 10;
+}
+
+// 전일대비 하락률(%) — 정렬용 (하락이 아니면 0)
 export function dropRate(p: { currentPrice: number; prevPrice?: number }): number {
-  if (!p.prevPrice || p.prevPrice <= p.currentPrice) return 0;
-  return Math.round(((p.prevPrice - p.currentPrice) / p.prevPrice) * 100);
+  const c = dayChange(p);
+  return c !== null && c < 0 ? -c : 0;
 }
 
 // 역대 최고가 대비 할인율(%)

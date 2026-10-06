@@ -63,6 +63,12 @@ src/
    `COUPANG_ACCESS_KEY`, `COUPANG_SECRET_KEY`, `CRON_SECRET`, `NEXT_PUBLIC_SITE_URL` 등록
 5. Actions 탭 → **Sync** → Run workflow(coupang) 로 첫 수집 → 상품 수백 개 자동 등록
 
+### 수동 등록 (API 키 발급 전)
+`/admin` (환경변수 `ADMIN_PASSWORD` 로 로그인) 에 붙여넣으면 표로 정리 → 확인 후 등록.
+- 쿠팡 파트너스 **HTML 코드**(링크·이미지·상품명 자동), 엑셀/구글시트 행 복사, `상품명↵가격↵링크` 줄 단위 모두 인식
+- 이미 등록된 상품은 **링크 + 가격**만 붙여넣으면 가격 갱신 → 가격 이력·전일대비 %·역대 최저/최고 자동 계산
+- 같은 상품을 나중에 API가 수집하면 같은 상품 ID로 이어서 추적
+
 ### 수집 구조 (Netlify 크레딧을 쓰지 않음)
 ```
 GitHub Actions (.github/workflows/sync.yml)

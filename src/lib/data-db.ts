@@ -83,14 +83,18 @@ export const dbData = {
     const rows = await db().select().from(P).where(eq(P.id, id)).limit(1);
     return rows[0] ? withHistory(rows[0]) : null;
   },
-  async getRelatedProducts(id: string, limit = 5): Promise<Product[]> {
-    const cur = await db().select({ categoryId: P.categoryId }).from(P).where(eq(P.id, id)).limit(1);
+  async getRelatedProducts(id: string, limit = 12): Promise<Product[]> {
+    const cur = await db()
+      .select({ categoryId: P.categoryId, price: P.currentPrice })
+      .from(P)
+      .where(eq(P.id, id))
+      .limit(1);
     if (!cur[0]) return [];
     const rows = await db()
       .select()
       .from(P)
       .where(and(eq(P.categoryId, cur[0].categoryId), ne(P.id, id)))
-      .orderBy(...byRank)
+      .orderBy(sql`abs(${P.currentPrice} - ${cur[0].price})`, ...byRank)
       .limit(limit);
     return rows.map((r) => toProduct(r));
   },

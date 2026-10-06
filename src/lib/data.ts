@@ -69,11 +69,15 @@ export async function getProduct(id: string): Promise<Product | null> {
   return seedProducts.find((p) => p.id === id) ?? null;
 }
 
-export async function getRelatedProducts(id: string, limit = 5): Promise<Product[]> {
+// 같은 카테고리에서 가격대가 가까운 순 (상세 페이지 하단 관련상품)
+export async function getRelatedProducts(id: string, limit = 12): Promise<Product[]> {
   if (useDb()) return (await repo()).getRelatedProducts(id, limit);
   const p = seedProducts.find((x) => x.id === id);
   if (!p) return [];
-  return seedProducts.filter((x) => x.id !== id && x.categoryId === p.categoryId).slice(0, limit);
+  return seedProducts
+    .filter((x) => x.id !== id && x.categoryId === p.categoryId)
+    .sort((a, b) => Math.abs(a.currentPrice - p.currentPrice) - Math.abs(b.currentPrice - p.currentPrice))
+    .slice(0, limit);
 }
 
 export async function getDeals(limit?: number): Promise<Deal[]> {

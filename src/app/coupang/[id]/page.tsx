@@ -7,6 +7,7 @@ import { site } from '@/lib/site';
 import { PriceChart } from '@/components/PriceChart';
 import { ProductCard } from '@/components/ProductCard';
 import { ReactionButtons } from '@/components/ReactionButtons';
+import { PriceChange } from '@/components/PriceChange';
 import { BookmarkButton } from '@/components/BookmarkButton';
 import { Comments } from '@/components/Comments';
 
@@ -39,7 +40,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   const { id } = await params;
   const p = await getProduct(id);
   if (!p) notFound();
-  const related = await getRelatedProducts(id);
+  const related = await getRelatedProducts(id, 12);
   const affiliate = coupangLink(p);
 
   const productJsonLd = {
@@ -90,7 +91,15 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           <h1 className="mt-2 text-[22px] font-bold leading-snug sm:text-2xl">{p.name}</h1>
           {p.option && <p className="mt-2 text-sm text-gray-500">옵션: {p.option}</p>}
 
-          <div className="mt-3 text-3xl font-extrabold">{won(p.currentPrice)}</div>
+          <div className="mt-3 flex flex-wrap items-baseline gap-x-2">
+            <span className="text-3xl font-extrabold">{won(p.currentPrice)}</span>
+            <PriceChange
+              currentPrice={p.currentPrice}
+              prevPrice={p.prevPrice}
+              withAmount
+              className="text-sm font-bold"
+            />
+          </div>
           <BuyVerdict current={p.currentPrice} lowest={p.lowestPrice} highest={p.highestPrice} />
 
           <div className="mt-4 grid grid-cols-3 gap-2 text-center">
@@ -177,10 +186,13 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
       {related.length > 0 && (
         <section>
-          <h2 className="mb-3 text-base font-bold">유사한 상품</h2>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-4 lg:grid-cols-5">
+          <div className="mb-3 flex items-baseline gap-2">
+            <h2 className="text-base font-bold">비슷한 가격대 {p.categoryLabel} 상품</h2>
+            <span className="text-xs text-gray-400">{won(p.currentPrice)} 전후</span>
+          </div>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-4 lg:grid-cols-6">
             {related.map((r) => (
-              <ProductCard key={r.id} product={r} />
+              <ProductCard key={r.id} product={r} showRange />
             ))}
           </div>
         </section>

@@ -1,11 +1,10 @@
 import Link from 'next/link';
 import type { Product } from '@/lib/types';
-import { won, dropRate, discountRate } from '@/lib/format';
+import { won } from '@/lib/format';
+import { PriceChange } from '@/components/PriceChange';
 
-export function ProductCard({ product, rank }: { product: Product; rank?: number }) {
+export function ProductCard({ product, rank, showRange }: { product: Product; rank?: number; showRange?: boolean }) {
   const atLow = product.currentPrice <= product.lowestPrice && product.highestPrice > product.lowestPrice;
-  const drop = dropRate(product);
-  const off = discountRate(product);
   return (
     <Link href={`/coupang/${product.id}`} className="group block">
       <div className="relative aspect-square w-full overflow-hidden rounded-xl border border-gray-100 bg-gray-50 dark:border-gray-800 dark:bg-gray-950">
@@ -29,10 +28,19 @@ export function ProductCard({ product, rank }: { product: Product; rank?: number
       <p className="mt-1.5 line-clamp-2 text-[13px] leading-snug text-gray-800 group-hover:text-blue-600 dark:text-gray-200">
         {product.name}
       </p>
-      <p className="mt-0.5 flex items-baseline gap-1">
-        {(drop > 0 || off > 0) && <span className="text-sm font-bold text-red-500">{drop > 0 ? drop : off}%</span>}
+      <p className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5">
         <span className="text-sm font-bold text-gray-900 dark:text-white">{won(product.currentPrice)}</span>
+        <PriceChange
+          currentPrice={product.currentPrice}
+          prevPrice={product.prevPrice}
+          className="text-xs font-semibold"
+        />
       </p>
+      {showRange && product.highestPrice > product.lowestPrice && (
+        <p className="text-[11px] text-gray-400">
+          가격폭 {won(product.lowestPrice)} ~ {won(product.highestPrice)}
+        </p>
+      )}
       {product.isRocket && <p className="text-[11px] font-semibold text-blue-600">로켓배송</p>}
     </Link>
   );
