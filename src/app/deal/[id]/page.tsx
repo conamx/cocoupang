@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { getDeal, getDeals } from '@/lib/data';
 import { timeAgo } from '@/lib/format';
 import { site } from '@/lib/site';
+import { ReactionButtons } from '@/components/ReactionButtons';
 
 export const revalidate = 300;
 
@@ -57,6 +58,11 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
       <p className="mt-2 text-[11px] text-gray-400">
         외부 커뮤니티/판매처로 이동합니다. 일부 링크는 제휴 링크일 수 있습니다.
       </p>
+
+      <div className="mt-8 flex flex-col items-center gap-2 border-t border-gray-100 pt-6 dark:border-gray-800">
+        <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">이 딜, 어땠나요?</p>
+        <ReactionButtons targetType="deal" targetId={d.id} />
+      </div>
 
       {more.length > 0 && (
         <section className="mt-10">

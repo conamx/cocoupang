@@ -6,6 +6,8 @@ import { won, isoDate, coupangLink } from '@/lib/format';
 import { site } from '@/lib/site';
 import { PriceChart } from '@/components/PriceChart';
 import { ProductCard } from '@/components/ProductCard';
+import { ReactionButtons } from '@/components/ReactionButtons';
+import { PriceAlertForm } from '@/components/PriceAlertForm';
 
 export const revalidate = 3600;
 
@@ -104,6 +106,8 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           <p className="mt-2 text-[11px] text-gray-400">
             쿠팡 파트너스 활동의 일환으로 이에 따른 일정액의 수수료를 제공받습니다.
           </p>
+
+          <PriceAlertForm productId={p.id} currentPrice={p.currentPrice} />
         </div>
       </div>
 
@@ -139,6 +143,11 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section className="mb-8 flex flex-col items-center gap-2 border-t border-gray-100 pt-6 dark:border-gray-800">
+        <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">이 상품, 어땠나요?</p>
+        <ReactionButtons targetType="product" targetId={p.id} />
       </section>
 
       {related.length > 0 && (
