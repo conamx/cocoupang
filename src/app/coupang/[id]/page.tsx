@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { RemoteImg } from '@/components/RemoteImg';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getProduct, getProducts, getRelatedProducts } from '@/lib/data';
@@ -80,8 +81,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
       <div className="mb-6 grid gap-5 md:grid-cols-2">
         <div className="relative aspect-square overflow-hidden rounded-xl bg-gray-50 dark:bg-gray-950">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={p.image} alt={p.name} className="h-full w-full object-cover" />
+          <RemoteImg src={p.image} alt={p.name} lazy={false} className="h-full w-full object-cover" />
         </div>
 
         <div>

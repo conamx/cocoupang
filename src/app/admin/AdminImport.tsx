@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { isAffiliateLink, parsePaste, parsePrice, type ParsedRow } from '@/lib/manual-import';
+import { badImageReason, isAffiliateLink, parsePaste, parsePrice, type ParsedRow } from '@/lib/manual-import';
 import { coupangCategories, etcCategory } from '@/lib/site';
 
 const CATS = [...coupangCategories, etcCategory];
@@ -187,7 +187,7 @@ export function AdminImport() {
                     <td className="p-2">
                       {r.image ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={r.image} alt="" className="h-12 w-12 rounded object-cover" />
+                        <img src={r.image} alt="" referrerPolicy="no-referrer" className="h-12 w-12 rounded object-cover" />
                       ) : (
                         <div className="h-12 w-12 rounded bg-gray-100 dark:bg-gray-800" />
                       )}
@@ -214,6 +214,7 @@ export function AdminImport() {
                     </td>
                     <td className="space-y-1 p-2">
                       <input value={r.image ?? ''} onChange={(e) => update(r._k, { image: e.target.value })} className={input} placeholder="이미지 주소" />
+                      {badImageReason(r.image) && <p className="text-[11px] text-red-600">{badImageReason(r.image)}</p>}
                       <p className="truncate text-[11px] text-gray-400" title={r.link}>
                         {isAffiliateLink(r.link) ? '✔ 파트너스 링크' : '⚠ 일반 링크(수수료 X)'} · {r.link}
                       </p>

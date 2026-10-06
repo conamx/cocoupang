@@ -44,7 +44,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
 
       <div className="relative mt-4 aspect-video overflow-hidden rounded-xl bg-gray-50 dark:bg-gray-950">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={d.thumb} alt={d.title} className="h-full w-full object-cover" />
+        <img referrerPolicy="no-referrer" src={d.thumb} alt={d.title} className="h-full w-full object-cover" />
       </div>
 
       {d.price && <div className="mt-4 text-2xl font-extrabold">{d.price}</div>}

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { RemoteImg } from '@/components/RemoteImg';
 import type { Deal } from '@/lib/types';
 import { timeAgo } from '@/lib/format';
 
@@ -6,8 +7,7 @@ export function DealCard({ deal }: { deal: Deal }) {
   return (
     <Link href={`/deal/${deal.id}`} className="group flex gap-3 rounded-xl border border-gray-100 p-2.5 transition hover:border-blue-200 hover:bg-blue-50/30 dark:border-gray-800 dark:hover:border-blue-900 dark:hover:bg-blue-950/20">
       <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-gray-50 dark:bg-gray-950">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={deal.thumb} alt={deal.title} loading="lazy" className="h-full w-full object-cover" />
+        <RemoteImg src={deal.thumb} alt={deal.title} className="h-full w-full object-cover" />
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5 text-[11px] font-semibold">

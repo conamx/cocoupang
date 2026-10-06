@@ -51,6 +51,15 @@ export function productIdFromUrl(url: string): string | undefined {
   return url.match(/\/vp\/products\/(\d+)/)?.[1] ?? url.match(/[?&]pageKey=(\d+)/)?.[1];
 }
 
+/** 이미지 주소 칸에 상품 링크를 넣은 경우 등 — 이미지로 쓸 수 없는 주소인지 */
+export function badImageReason(url?: string): string | undefined {
+  if (!url) return undefined;
+  if (!/^https?:\/\//i.test(url)) return '이미지 주소는 http로 시작해야 해요';
+  if (isCoupangLink(url) && !isImageUrl(url))
+    return '이미지 주소가 아니라 상품 링크예요 — 사진을 우클릭 → "이미지 주소 복사"';
+  return undefined;
+}
+
 export const isAffiliateLink = (url: string) => /link\.coupang\.com|coupa\.ng/i.test(url);
 
 function fromCells(cells: string[], into: Partial<ParsedRow>) {

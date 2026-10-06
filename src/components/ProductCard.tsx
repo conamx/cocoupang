@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { RemoteImg } from '@/components/RemoteImg';
 import type { Product } from '@/lib/types';
 import { won } from '@/lib/format';
 import { PriceChange } from '@/components/PriceChange';
@@ -9,8 +10,7 @@ export function ProductCard({ product, rank, showRange }: { product: Product; ra
     <Link href={`/coupang/${product.id}`} className="group block">
       <div className="relative aspect-square w-full overflow-hidden rounded-xl border border-gray-100 bg-gray-50 dark:border-gray-800 dark:bg-gray-950">
         {/* 쿠팡 CDN 이미지를 그대로 사용 — Netlify 이미지 변환/대역폭 크레딧을 쓰지 않음 */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={product.image} alt={product.name} loading="lazy" className="h-full w-full object-cover" />
+        <RemoteImg src={product.image} alt={product.name} className="h-full w-full object-cover" />
         {rank && (
           <span className="absolute bottom-1.5 left-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white">
             {rank}

@@ -28,7 +28,7 @@ export default function BookmarksPage() {
               <Link href={b.href} className="flex min-w-0 flex-1 items-center gap-3">
                 <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-gray-50 dark:bg-gray-950">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={b.image} alt="" className="h-full w-full object-cover" />
+                  <img referrerPolicy="no-referrer" src={b.image} alt="" className="h-full w-full object-cover" />
                 </div>
                 <div className="min-w-0">
                   <p className="line-clamp-2 text-sm font-medium">{b.title}</p>

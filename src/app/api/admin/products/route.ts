@@ -2,7 +2,7 @@ import { inArray } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { db, schema, useDb } from '@/db/client';
 import { isAdmin } from '@/lib/admin-auth';
-import { isAffiliateLink, productIdFromUrl, type ParsedRow } from '@/lib/manual-import';
+import { badImageReason, isAffiliateLink, productIdFromUrl, type ParsedRow } from '@/lib/manual-import';
 import { coupangCategories, etcCategory } from '@/lib/site';
 import { upsertProducts, type UpsertRow } from '@/lib/sync/upsert';
 
@@ -61,6 +61,8 @@ export async function POST(req: Request) {
     const id = ids[i];
     if (!id) return results.push({ link: r.link, ok: false, error: '상품 ID를 찾지 못함 (쿠팡 상품 링크인지 확인)' });
     const prev = byId.get(id);
+    const imgErr = badImageReason(r.image?.trim());
+    if (imgErr) return results.push({ link: r.link, ok: false, id, error: imgErr });
     const name = r.name?.trim() || prev?.name;
     const image = r.image?.trim() || prev?.image;
     const price = r.price ?? prev?.currentPrice;
