@@ -105,10 +105,13 @@ Netlify: 정적/ISR 페이지 서빙만 (상품·카테고리 1일, 홈·핫딜 
 `netlify.toml` 에 `@netlify/plugin-nextjs` 설정 포함 — Next.js SSR·ISR·API·next/og 모두 동작.
 
 1. Netlify → **Add new site → Import an existing project** → `conamx/jnc`
-2. **Branch to deploy** 를 `claude/confident-edison-vd8vp6` 로 지정하면 미리보기 배포 생성
-   (main 머지 전까지 기존 라이브 사이트는 영향 없음)
-3. env 없이도 시드 데이터로 바로 뜸. 운영 시 Site settings → Environment:
-   `DATA_SOURCE=db`, `DATABASE_URL`, `CRON_SECRET`, `NEXT_PUBLIC_SITE_URL`
+2. **Production branch 는 `main`** 으로 두고, Branch deploys 에 작업 브랜치를 추가
+   → 작업 브랜치 push 는 무료 미리보기(branch deploy), 크레딧(15)은 main 머지 때만 소모
+   ⚠ 작업 브랜치를 Production branch 로 지정하면 push 할 때마다 15크레딧이 나갑니다.
+3. env 없이도 시드 데이터로 바로 뜸. 운영 시 Site settings → Environment
+   (스코프: All deploy contexts — 미리보기에도 적용되도록):
+   `DATA_SOURCE=db`, `DATABASE_URL`, `CRON_SECRET`, `NEXT_PUBLIC_SITE_URL`, `ADMIN_PASSWORD`
+   환경변수를 바꾼 뒤에는 재배포해야 반영됩니다.
    (쿠팡 키는 GitHub Actions 에만 있으면 됨)
 4. 확인 후 PR #1을 main에 머지 → 기존 사이트 도메인에 반영
 
