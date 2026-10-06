@@ -53,10 +53,8 @@ src/
 
 ## 운영 전환 (시드 → 실데이터)
 
-1. **DB 준비** (Supabase/Neon 무료) → `DATABASE_URL` 설정 후
-   ```bash
-   DATABASE_URL=... npm run db:migrate
-   ```
+1. **DB 준비** (Supabase 무료, 서울 리전) → SQL Editor 에 `drizzle/supabase-init.sql` 붙여넣고 Run
+   (여러 번 실행해도 안전). `DATABASE_URL` 은 Connect → Direct → **Transaction pooler**(6543) 주소
 2. **쿠팡 파트너스 키** 발급(partners.coupang.com) → `COUPANG_ACCESS_KEY` / `COUPANG_SECRET_KEY`
 3. Netlify 환경변수: `DATA_SOURCE=db`, `DATABASE_URL`, `CRON_SECRET`, `NEXT_PUBLIC_SITE_URL`
 4. GitHub 저장소 **Settings → Secrets and variables → Actions** 에 `DATABASE_URL`,
