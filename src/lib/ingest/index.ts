@@ -1,10 +1,6 @@
-import type { RawDeal, SourceAdapter } from './types';
-import { ppomppu } from './ppomppu';
+import type { RawDeal } from './types';
+import { sourceAdapters as adapters } from './sources';
 import { db, schema, useDb } from '@/db/client';
-
-// 등록된 소스 어댑터. 새 커뮤니티는 여기 추가만 하면 됩니다.
-const adapters: SourceAdapter[] = [ppomppu];
-// TODO: 펨코/루리웹 어댑터 추가 (RSS 없으면 목록 페이지 크롤 어댑터로)
 
 const FALLBACK_THUMB = '/placeholder.svg';
 

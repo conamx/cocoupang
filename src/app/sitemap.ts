@@ -1,5 +1,5 @@
 import type { MetadataRoute } from 'next';
-import { site } from '@/lib/site';
+import { site, coupangCategories } from '@/lib/site';
 import { getProducts, getDeals, getPosts, getBrands } from '@/lib/data';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -20,6 +20,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   return [
     ...staticUrls,
+    ...coupangCategories.map((c) => ({
+      url: `${base}/coupang?cat=${c.id}`,
+      changeFrequency: 'daily' as const,
+      priority: 0.7,
+    })),
     ...products.map((p) => ({
       url: `${base}/coupang/${p.id}`,
       lastModified: new Date(p.updatedAt),
