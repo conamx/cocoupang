@@ -9,6 +9,7 @@ import { ProductCard } from '@/components/ProductCard';
 import { ReactionButtons } from '@/components/ReactionButtons';
 import { PriceAlertForm } from '@/components/PriceAlertForm';
 import { BookmarkButton } from '@/components/BookmarkButton';
+import { Comments } from '@/components/Comments';
 
 export const revalidate = 3600;
 
@@ -160,6 +161,9 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">이 상품, 어땠나요?</p>
         <ReactionButtons targetType="product" targetId={p.id} />
       </section>
+
+      <Comments targetType="product" targetId={p.id} />
+
 
       {related.length > 0 && (
         <section>

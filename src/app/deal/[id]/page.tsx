@@ -6,6 +6,7 @@ import { timeAgo } from '@/lib/format';
 import { site } from '@/lib/site';
 import { ReactionButtons } from '@/components/ReactionButtons';
 import { BookmarkButton } from '@/components/BookmarkButton';
+import { Comments } from '@/components/Comments';
 
 export const revalidate = 300;
 
@@ -67,6 +68,9 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
         <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">이 딜, 어땠나요?</p>
         <ReactionButtons targetType="deal" targetId={d.id} />
       </div>
+
+      <Comments targetType="deal" targetId={d.id} />
+
 
       {more.length > 0 && (
         <section className="mt-10">

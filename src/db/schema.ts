@@ -71,6 +71,17 @@ export const reactions = pgTable('reactions', {
   pk: primaryKey({ columns: [t.targetType, t.targetId, t.anonId] }),
 }));
 
+export const comments = pgTable('comments', {
+  id: serial('id').primaryKey(),
+  targetType: text('target_type').notNull(), // 'deal' | 'product'
+  targetId: text('target_id').notNull(),
+  nickname: text('nickname'),
+  body: text('body').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => ({
+  byTarget: index('comments_target_idx').on(t.targetType, t.targetId, t.createdAt),
+}));
+
 export const priceAlerts = pgTable('price_alerts', {
   id: serial('id').primaryKey(),
   productId: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
