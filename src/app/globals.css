@@ -28,3 +28,17 @@ html {
   margin: 0.8em 0;
   line-height: 1.8;
 }
+.prose-body h3 {
+  font-size: 1.02rem;
+  font-weight: 700;
+  margin: 1.3em 0 0.5em;
+}
+.prose-body p {
+  white-space: pre-line;
+}
+.prose-body ul {
+  margin: 0.8em 0;
+  padding-left: 1.3em;
+  list-style: disc;
+  line-height: 1.8;
+}

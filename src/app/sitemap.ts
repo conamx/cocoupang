@@ -2,6 +2,9 @@ import type { MetadataRoute } from 'next';
 import { site, coupangCategories } from '@/lib/site';
 import { getProductIndex, getDeals, getPosts, getBrands } from '@/lib/data';
 
+// 예약 발행한 정보글이 발행일에 맞춰 들어가도록 1시간마다 새로 만든다
+export const revalidate = 3600;
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = site.url;
   const [products, deals, posts, brands] = await Promise.all([

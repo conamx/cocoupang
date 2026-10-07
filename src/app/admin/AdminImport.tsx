@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { badImageReason, isAffiliateLink, parsePaste, parsePrice, type ParsedRow } from '@/lib/manual-import';
 import { coupangCategories, etcCategory } from '@/lib/site';
+import { AdminPosts } from './AdminPosts';
 import { AdminProducts } from './AdminProducts';
 
 const CATS = [...coupangCategories, etcCategory];
@@ -23,7 +24,7 @@ export function AdminImport() {
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState<string[]>([]);
-  const [tab, setTab] = useState<'import' | 'manage'>('import');
+  const [tab, setTab] = useState<'import' | 'manage' | 'posts'>('import');
 
   async function login(k: string) {
     const res = await fetch('/api/admin/products', { headers: { 'x-admin-key': k } });
@@ -125,6 +126,7 @@ export function AdminImport() {
         [
           ['import', '붙여넣기 등록'],
           ['manage', '상품 관리 (수정·삭제)'],
+          ['posts', '정보글 예약 등록'],
         ] as const
       ).map(([id, label]) => (
         <button
@@ -139,6 +141,15 @@ export function AdminImport() {
       ))}
     </div>
   );
+
+  if (tab === 'posts') {
+    return (
+      <div className="space-y-5">
+        {tabs}
+        <AdminPosts adminKey={key} dbOn={dbOn} />
+      </div>
+    );
+  }
 
   if (tab === 'manage') {
     return (

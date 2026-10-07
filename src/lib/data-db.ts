@@ -149,11 +149,19 @@ export const dbData = {
     return rows[0] ? toDeal(rows[0]) : null;
   },
   async getPosts(): Promise<Post[]> {
-    const rows = await db().select().from(schema.posts).orderBy(desc(schema.posts.date));
+    const rows = await db()
+      .select()
+      .from(schema.posts)
+      .where(lte(schema.posts.date, new Date()))
+      .orderBy(desc(schema.posts.date));
     return rows.map(toPost);
   },
   async getPost(slug: string): Promise<Post | null> {
-    const rows = await db().select().from(schema.posts).where(eq(schema.posts.slug, slug)).limit(1);
+    const rows = await db()
+      .select()
+      .from(schema.posts)
+      .where(and(eq(schema.posts.slug, slug), lte(schema.posts.date, new Date())))
+      .limit(1);
     return rows[0] ? toPost(rows[0]) : null;
   },
   async search(q: string) {
@@ -164,7 +172,12 @@ export const dbData = {
       db()
         .select()
         .from(schema.posts)
-        .where(or(ilike(schema.posts.title, like), ilike(schema.posts.summary, like))),
+        .where(
+          and(
+            lte(schema.posts.date, new Date()),
+            or(ilike(schema.posts.title, like), ilike(schema.posts.summary, like)),
+          ),
+        ),
     ]);
     return {
       products: products.map((r) => toProduct(r)),

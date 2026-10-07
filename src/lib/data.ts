@@ -91,14 +91,17 @@ export async function getDeal(id: string): Promise<Deal | null> {
   return seedDeals.find((d) => d.id === id) ?? null;
 }
 
+// 발행일(오전 9시, 한국시간)이 아직 안 된 예약 글은 사이트·사이트맵·검색에 보이지 않습니다.
+const isPublished = (p: Post) => p.date <= new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+
 export async function getPosts(): Promise<Post[]> {
   if (useDb()) return (await repo()).getPosts();
-  return [...seedPosts].sort((a, b) => b.date.localeCompare(a.date));
+  return seedPosts.filter(isPublished).sort((a, b) => b.date.localeCompare(a.date));
 }
 
 export async function getPost(slug: string): Promise<Post | null> {
   if (useDb()) return (await repo()).getPost(slug);
-  return seedPosts.find((p) => p.slug === slug) ?? null;
+  return seedPosts.find((p) => p.slug === slug && isPublished(p)) ?? null;
 }
 
 // 할인코드 브랜드는 정적 목록(시드)으로 관리.
@@ -119,6 +122,6 @@ export async function search(q: string): Promise<{ products: Product[]; deals: D
   return {
     products: seedProducts.filter((p) => match(p.name)),
     deals: seedDeals.filter((d) => match(d.title)),
-    posts: seedPosts.filter((p) => match(p.title) || match(p.summary)),
+    posts: seedPosts.filter((p) => isPublished(p) && (match(p.title) || match(p.summary))),
   };
 }

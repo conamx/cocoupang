@@ -67,6 +67,14 @@ src/
 - 이미 등록된 상품은 **링크 + 가격**만 붙여넣으면 가격 갱신 → 가격 이력·전일대비 %·역대 최저/최고 자동 계산
 - 같은 상품을 나중에 API가 수집하면 같은 상품 ID로 이어서 추적
 
+### 정보글 대량 예약 등록
+`/admin` → **정보글 예약 등록** 탭 → 엑셀 양식(`public/templates/shareinfo-posts-template.xlsx`) 내려받기 →
+한 줄에 글 하나씩 작성 → 파일 올리기 → 발행일 확인 → 예약 등록. 재배포 없이 DB에 저장됩니다.
+- 발행일 **오전 9시(KST)**부터 사이트·사이트맵·검색에 노출. 그 전에는 404.
+- 발행일을 비운 글은 '시작일부터 하루 N개씩' 자동 배정.
+- 본문 서식: 빈 줄 문단, `## 소제목`, `### 작은 소제목`, `- 목록`, 한 줄 `[상품:상품ID]` = 상품 카드.
+- 코드: `src/lib/post-import.ts`(양식 해석·본문 서식), `src/app/api/admin/posts`(API), `src/app/admin/AdminPosts.tsx`(화면)
+
 ### 수집 구조 (Netlify 크레딧을 쓰지 않음)
 ```
 GitHub Actions (.github/workflows/sync.yml)
