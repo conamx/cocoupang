@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { badImageReason, isAffiliateLink, parsePaste, parsePrice, type ParsedRow } from '@/lib/manual-import';
+import { badImageReason, isAffiliateLink, parsePaste, parsePrice, parseTableRows, type ParsedRow } from '@/lib/manual-import';
+import { parseTable } from '@/lib/post-import';
+import { readXlsxFirstSheet } from '@/lib/xlsx-read';
 import { coupangCategories, etcCategory } from '@/lib/site';
 import { AdminPosts } from './AdminPosts';
 import { AdminProducts } from './AdminProducts';
@@ -9,6 +11,7 @@ import { AdminProducts } from './AdminProducts';
 const CATS = [...coupangCategories, etcCategory];
 const KEY = 'shareinfo-admin-key';
 const CHUNK = 50;
+const TEMPLATE = '/templates/shareinfo-products-template.xlsx';
 
 type Row = ParsedRow & { _k: number; error?: string; priceText?: string };
 
@@ -50,11 +53,29 @@ export function AdminImport() {
     }
   }, []);
 
-  function analyze() {
-    const parsed = parsePaste(text).map((r, i) => ({ ...r, _k: Date.now() + i }));
+  function addParsed(list: ParsedRow[]) {
+    const parsed = list.map((r, i) => ({ ...r, _k: Date.now() + i }));
     setRows((prev) => [...prev, ...parsed]);
+    const noPrice = parsed.filter((r) => !r.price).length;
+    setLog([
+      `${parsed.length}개 인식됨 — 아래 표에서 확인·수정 후 등록하세요.${noPrice ? ` (가격 빈 칸 ${noPrice}개)` : ''}`,
+    ]);
+  }
+
+  function analyze() {
+    addParsed(parsePaste(text));
     setText('');
-    setLog([`${parsed.length}개 인식됨 — 아래 표에서 확인·수정 후 등록하세요.`]);
+  }
+
+  async function onFile(f: File | undefined) {
+    if (!f) return;
+    try {
+      if (/\.xlsx$/i.test(f.name)) addParsed(parseTableRows(await readXlsxFirstSheet(f)));
+      else if (/\.(csv|tsv|txt)$/i.test(f.name)) addParsed(parseTableRows(parseTable(await f.text())));
+      else setLog(['.xlsx 또는 .csv 파일을 올려주세요 (.xls 옛 형식은 엑셀에서 .xlsx로 다시 저장)']);
+    } catch (e) {
+      setLog([`파일을 읽지 못했어요: ${(e as Error).message}`]);
+    }
   }
 
   function update(k: number, patch: Partial<Row>) {
@@ -174,6 +195,13 @@ export function AdminImport() {
         <summary className="cursor-pointer font-semibold">붙여넣을 수 있는 형식 (섞어도 됨)</summary>
         <ul className="mt-2 list-disc space-y-1 pl-5">
           <li>
+            <b>상품 엑셀 양식</b> —{' '}
+            <a href={TEMPLATE} download className="font-semibold text-blue-600 underline">
+              양식 내려받기
+            </a>{' '}
+            → 한 줄에 상품 하나 (쿠팡 HTML 코드 + 가격) → 아래 &lsquo;엑셀 파일 올리기&rsquo;
+          </li>
+          <li>
             <b>쿠팡 파트너스 HTML 코드</b> — 상품 링크 만들기 → HTML 복사. 링크·이미지·상품명이 한 번에 들어옵니다(가격만 입력).
           </li>
           <li>
@@ -194,6 +222,18 @@ export function AdminImport() {
         placeholder={'<a href="https://link.coupang.com/a/..."><img src="..." alt="상품명"></a>\n또는\nhttps://link.coupang.com/a/...\t상품명\t12,900\t이미지주소'}
       />
       <div className="flex flex-wrap items-center gap-2">
+        <label className="cursor-pointer rounded bg-blue-600 px-4 py-2 text-sm font-bold text-white">
+          엑셀 파일 올리기
+          <input
+            type="file"
+            accept=".xlsx,.csv,.tsv,.txt"
+            className="hidden"
+            onChange={(e) => {
+              void onFile(e.target.files?.[0]);
+              e.target.value = '';
+            }}
+          />
+        </label>
         <button onClick={analyze} disabled={!text.trim()} className="rounded bg-gray-800 px-4 py-2 text-sm font-bold text-white disabled:opacity-40 dark:bg-gray-200 dark:text-gray-900">
           표로 정리하기
         </button>
