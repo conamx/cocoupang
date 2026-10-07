@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { badImageReason, isAffiliateLink, parsePaste, parsePrice, type ParsedRow } from '@/lib/manual-import';
 import { coupangCategories, etcCategory } from '@/lib/site';
+import { AdminProducts } from './AdminProducts';
 
 const CATS = [...coupangCategories, etcCategory];
 const KEY = 'shareinfo-admin-key';
@@ -22,6 +23,7 @@ export function AdminImport() {
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState<string[]>([]);
+  const [tab, setTab] = useState<'import' | 'manage'>('import');
 
   async function login(k: string) {
     const res = await fetch('/api/admin/products', { headers: { 'x-admin-key': k } });
@@ -117,8 +119,39 @@ export function AdminImport() {
 
   const bad = rows.filter((r) => !r.name || !r.image || !r.price).length;
 
+  const tabs = (
+    <div className="flex gap-1 border-b border-gray-200 dark:border-gray-800">
+      {(
+        [
+          ['import', '붙여넣기 등록'],
+          ['manage', '상품 관리 (수정·삭제)'],
+        ] as const
+      ).map(([id, label]) => (
+        <button
+          key={id}
+          onClick={() => setTab(id)}
+          className={`-mb-px border-b-2 px-3 py-2 text-sm font-bold ${
+            tab === id ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-800 dark:hover:text-gray-200'
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (tab === 'manage') {
+    return (
+      <div className="space-y-5">
+        {tabs}
+        <AdminProducts adminKey={key} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
+      {tabs}
       <h1 className="text-xl font-bold">상품 붙여넣기 등록</h1>
       {!dbOn && (
         <p className="rounded bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200">
