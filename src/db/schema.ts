@@ -17,6 +17,8 @@ export const products = pgTable('products', {
   categoryId: text('category_id').notNull(),
   categoryLabel: text('category_label').notNull(),
   option: text('option'),
+  // 상품 소개 (어떤 상품인지 2~4문장) — 티스토리 매크로가 AI로 작성하거나 관리자가 입력
+  description: text('description'),
   vendorItemId: text('vendor_item_id'),
   // 파트너스 API가 돌려주는 수수료 추적 링크(link.coupang.com). 없으면 상품 URL로 대체.
   affiliateUrl: text('affiliate_url'),

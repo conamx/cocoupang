@@ -80,6 +80,16 @@ export function productSummary(p: Product): { paragraphs: string[]; faq: Faq[]; 
     },
   ];
 
+  // 검색 결과 설명: 상품 소개가 있으면 첫 문장 + 가격, 없으면 가격 위주
+  const intro = p.description?.replace(/\s+/g, ' ').trim();
+  if (intro) {
+    const firstSentence = intro.match(/^.{20,110}?[.!?。](\s|$)/)?.[0]?.trim() ?? intro.slice(0, 100);
+    return {
+      paragraphs,
+      faq,
+      meta: `${firstSentence} 쿠팡 현재가 ${won(p.currentPrice)}, 역대 최저가 ${won(p.lowestPrice)} — 가격 변동 추이를 확인하세요.`,
+    };
+  }
   const meta =
     `${p.name} 쿠팡 현재가 ${won(p.currentPrice)}, 역대 최저가 ${won(p.lowestPrice)}.` +
     (n >= 2 ? ` ${n}회 가격 기록으로 본 가격 변동 추이와 구매 타이밍을 확인하세요.` : ' 가격 변동 추이를 확인하세요.');

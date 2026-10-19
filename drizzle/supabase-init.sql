@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS "products" (
 	"category_id" text NOT NULL,
 	"category_label" text NOT NULL,
 	"option" text,
+	"description" text,
 	"vendor_item_id" text,
 	"affiliate_url" text,
 	"is_rocket" boolean DEFAULT false NOT NULL,
@@ -78,6 +79,9 @@ CREATE TABLE IF NOT EXISTS "comments" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 CREATE INDEX IF NOT EXISTS "comments_target_idx" ON "comments" ("target_type", "target_id", "created_at");
+
+-- 이미 만든 DB 업데이트용 (상품 소개 칸 추가) — 여러 번 실행해도 안전
+ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "description" text;
 
 -- 보안: Supabase 공개 키로 테이블을 읽고 쓰지 못하게 잠금 (사이트 동작에는 영향 없음)
 ALTER TABLE "products" ENABLE ROW LEVEL SECURITY;

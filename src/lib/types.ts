@@ -10,6 +10,7 @@ export type Product = {
   categoryId: string;
   categoryLabel: string;
   option?: string;
+  description?: string; // 상품 소개
   currentPrice: number;
   lowestPrice: number;
   highestPrice: number;

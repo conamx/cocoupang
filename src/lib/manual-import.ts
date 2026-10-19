@@ -17,6 +17,8 @@ export type ParsedRow = {
   price?: number;
   image?: string;
   categoryId?: string;
+  description?: string; // 상품 소개 (티스토리 매크로가 AI로 작성)
+  productId?: string; // 매크로가 이미 알아낸 쿠팡 상품 ID (있으면 단축링크 해석 생략)
 };
 
 const ALL_CATS = [...coupangCategories, etcCategory];
@@ -60,6 +62,18 @@ export function badImageReason(url?: string): string | undefined {
   if (isCoupangLink(url) && !isImageUrl(url))
     return '이미지 주소가 아니라 상품 링크예요 — 사진을 우클릭 → "이미지 주소 복사"';
   return undefined;
+}
+
+/** 상품 소개 정리: 태그 제거·공백 정리·길이 제한. 비면 undefined */
+export function cleanDescription(s?: string | null): string | undefined {
+  if (typeof s !== 'string') return undefined;
+  const t = s
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+    .slice(0, 1500);
+  return t || undefined;
 }
 
 export const isAffiliateLink = (url: string) => /link\.coupang\.com|coupa\.ng/i.test(url);

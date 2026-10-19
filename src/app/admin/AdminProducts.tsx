@@ -20,10 +20,11 @@ type AdminProduct = {
   categoryId: string;
   buyUrl: string;
   affiliateUrl: string | null;
+  description: string | null;
   updatedAt: string;
 };
 
-type Edit = { name?: string; priceText?: string; image?: string; categoryId?: string };
+type Edit = { name?: string; priceText?: string; image?: string; categoryId?: string; description?: string };
 
 const input =
   'w-full rounded border border-gray-200 bg-white px-2 py-1 text-[13px] dark:border-gray-700 dark:bg-gray-900';
@@ -81,6 +82,7 @@ export function AdminProducts({ adminKey }: { adminKey: string }) {
     if (e.name !== undefined && e.name.trim() !== p.name) body.name = e.name.trim();
     if (e.image !== undefined && e.image.trim() !== p.image) body.image = e.image.trim();
     if (e.categoryId !== undefined && e.categoryId !== p.categoryId) body.categoryId = e.categoryId;
+    if (e.description !== undefined && e.description.trim() !== (p.description ?? '')) body.description = e.description.trim();
     if (e.priceText !== undefined) {
       const price = parsePrice(e.priceText);
       if (!price) {
@@ -189,6 +191,13 @@ export function AdminProducts({ adminKey }: { adminKey: string }) {
                     <input value={e.name ?? p.name} onChange={(ev) => edit(p.id, { name: ev.target.value })} className={input} />
                     <input value={img} onChange={(ev) => edit(p.id, { image: ev.target.value })} className={`${input} text-[11px] text-gray-500`} />
                     {badImageReason(e.image) && <p className="text-[11px] text-red-600">{badImageReason(e.image)}</p>}
+                    <textarea
+                      value={e.description ?? p.description ?? ''}
+                      onChange={(ev) => edit(p.id, { description: ev.target.value })}
+                      rows={2}
+                      placeholder="상품 소개 (어떤 상품인지 2~4문장) — 비워두면 매크로가 다음에 채움"
+                      className={`${input} text-[12px]`}
+                    />
                     <p className="text-[11px] text-gray-400">
                       ID {p.id} · 최저 {won(p.lowestPrice)} / 최고 {won(p.highestPrice)}
                       {!p.affiliateUrl && <span className="text-amber-600"> · ⚠ 파트너스 링크 없음</span>}

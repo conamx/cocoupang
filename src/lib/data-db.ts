@@ -27,6 +27,7 @@ function toProduct(r: ProductRow, hist: (typeof schema.priceHistory.$inferSelect
     categoryId: r.categoryId,
     categoryLabel: r.categoryLabel,
     option: r.option ?? undefined,
+    description: r.description ?? undefined,
     vendorItemId: r.vendorItemId ?? undefined,
     affiliateUrl: r.affiliateUrl ?? undefined,
     isRocket: r.isRocket,

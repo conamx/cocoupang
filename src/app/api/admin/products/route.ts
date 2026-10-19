@@ -1,17 +1,18 @@
-import { and, asc, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { db, schema, useDb } from '@/db/client';
 import { isAdmin } from '@/lib/admin-auth';
-import { badImageReason, isAffiliateLink, parsePaste, productIdFromUrl, type ParsedRow } from '@/lib/manual-import';
+import { badImageReason, cleanDescription, isAffiliateLink, parsePaste, productIdFromUrl, type ParsedRow } from '@/lib/manual-import';
 import { coupangCategories, etcCategory, site } from '@/lib/site';
 import { upsertProducts, type UpsertRow } from '@/lib/sync/upsert';
 
 /**
  * 관리자 상품 API (헤더 x-admin-key = ADMIN_PASSWORD)
  *   GET    ?           로그인 확인
- *   GET    ?list=1&q=&cat=&stale=1&offset=&limit=   상품 목록·검색 (티스토리 매크로도 사용)
+ *   GET    ?list=1&q=&cat=&stale=1&nodesc=1&offset=&limit=   상품 목록·검색 (티스토리 매크로도 사용, nodesc=소개 없는 상품)
  *   POST   {rows} 또는 {text}                         붙여넣기 등록 (text 는 서버에서 해석)
- *   PATCH  {id, name?, price?, image?, categoryId?, affiliateUrl?}   수정
+ *                                                    rows[].description 은 기존 소개가 없을 때만 저장
+ *   PATCH  {id, name?, price?, image?, categoryId?, affiliateUrl?, description?}   수정 (description '' = 삭제)
  *   DELETE ?id=                                      삭제 (가격 이력 포함)
  */
 
@@ -36,6 +37,7 @@ function toAdminProduct(r: ProductRow) {
     highestPrice: r.highestPrice,
     categoryId: r.categoryId,
     categoryLabel: r.categoryLabel,
+    description: r.description,
     affiliateUrl: r.affiliateUrl,
     buyUrl: r.affiliateUrl ?? `https://www.coupang.com/vp/products/${r.id}`,
     pageUrl: `${site.url}/coupang/${r.id}`,
@@ -59,6 +61,7 @@ export async function GET(req: Request) {
   const q = (url.searchParams.get('q') ?? '').trim();
   const cat = url.searchParams.get('cat') ?? '';
   const stale = url.searchParams.get('stale') === '1';
+  const noDesc = url.searchParams.get('nodesc') === '1';
   const limit = Math.min(Number(url.searchParams.get('limit') ?? 50) || 50, 200);
   const offset = Math.max(Number(url.searchParams.get('offset') ?? 0) || 0, 0);
 
@@ -72,6 +75,7 @@ export async function GET(req: Request) {
     conds.length ? or(...conds) : undefined,
     cat ? eq(P.categoryId, cat) : undefined,
     stale ? staleToday : undefined,
+    noDesc ? isNull(P.description) : undefined,
   );
   // 검색어 단어가 많이 맞는 순 (검색어 없으면 생략 — ORDER BY 상수는 Postgres 오류)
   const byScore = words.length
@@ -139,13 +143,17 @@ export async function POST(req: Request) {
   };
   const input = (body.text ? parsePaste(body.text) : (body.rows ?? [])).slice(0, 50); // 함수 시간 제한
 
-  const ids = await Promise.all(input.map((r) => resolveProductId(r.link)));
+  // 매크로가 상품 ID를 알려주면 그대로 사용 (단축링크 해석 생략)
+  const ids = await Promise.all(
+    input.map((r) => (r.productId && /^\d+$/.test(r.productId) ? r.productId : resolveProductId(r.link))),
+  );
   const known = ids.filter((x): x is string => Boolean(x));
   const existing = known.length ? await db().select().from(P).where(inArray(P.id, known)) : [];
   const byId = new Map(existing.map((e) => [e.id, e]));
 
   const results: Result[] = [];
   const toSave: UpsertRow[] = [];
+  const descs = new Map<string, string>();
   input.forEach((r, i) => {
     const id = ids[i];
     if (!id) return results.push({ link: r.link, ok: false, error: '상품 ID를 찾지 못함 (쿠팡 상품 링크인지 확인)' });
@@ -168,11 +176,16 @@ export async function POST(req: Request) {
       affiliateUrl: isAffiliateLink(r.link) ? r.link : undefined,
       source: 'manual',
     });
+    const desc = cleanDescription(r.description);
+    if (desc && !prev?.description) descs.set(id, desc);
     results.push({ link: r.link, ok: true, id, created: !prev });
   });
 
   if (toSave.length) {
     await upsertProducts(toSave);
+    for (const [id, description] of descs) {
+      await db().update(P).set({ description }).where(and(eq(P.id, id), isNull(P.description)));
+    }
     revalidatePath('/', 'layout');
     // 저장된 최종 상태를 함께 돌려줌 (매크로가 글에 상품 카드를 넣을 때 사용)
     const saved = await db().select().from(P).where(inArray(P.id, toSave.map((s) => s.productId)));
@@ -193,6 +206,7 @@ export async function PATCH(req: Request) {
     image?: string;
     categoryId?: string;
     affiliateUrl?: string;
+    description?: string;
   };
   if (!b.id) return Response.json({ error: 'id 필요' }, { status: 400 });
   const [prev] = await db().select().from(P).where(eq(P.id, b.id)).limit(1);
@@ -236,6 +250,7 @@ export async function PATCH(req: Request) {
       categoryId,
       categoryLabel: labelOf(categoryId),
       ...(b.affiliateUrl ? { affiliateUrl: b.affiliateUrl } : {}),
+      ...(b.description !== undefined ? { description: cleanDescription(b.description) ?? null } : {}),
     })
     .where(eq(P.id, prev.id));
 
