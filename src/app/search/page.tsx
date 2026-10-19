@@ -36,7 +36,7 @@ export default async function SearchPage({
       {products.length > 0 && (
         <section className="mb-8">
           <h2 className="mb-3 text-base font-bold">상품 {products.length}</h2>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-4 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
             {products.map((p) => (
               <ProductCard key={p.id} product={p} />
             ))}

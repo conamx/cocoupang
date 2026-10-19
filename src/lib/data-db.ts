@@ -2,7 +2,7 @@ import { and, desc, eq, gt, ilike, inArray, lte, ne, or, sql } from 'drizzle-orm
 import { db, schema } from '@/db/client';
 import type { Deal, Post, Product } from '@/lib/types';
 import type { ProductSections } from '@/lib/data';
-import { coupangCategories } from '@/lib/site';
+import { coupangCategories, etcCategory } from '@/lib/site';
 
 // DATA_SOURCE=db 일 때 사용하는 Postgres 구현.
 // data.ts 가 플래그에 따라 이 모듈 또는 시드를 선택합니다.
@@ -130,7 +130,7 @@ export const dbData = {
       goldbox: goldbox.map((r) => toProduct(r)),
       lowest: lowest.map((r) => toProduct(r)),
       drops: drops.map((r) => toProduct(r)),
-      byCategory: coupangCategories
+      byCategory: [...coupangCategories, etcCategory]
         .map((c) => ({ ...c, products: top.filter((p) => p.categoryId === c.id) }))
         .filter((c) => c.products.length > 0),
     };

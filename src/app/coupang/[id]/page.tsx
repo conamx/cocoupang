@@ -190,13 +190,26 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             <h2 className="text-base font-bold">비슷한 가격대 {p.categoryLabel} 상품</h2>
             <span className="text-xs text-gray-400">{won(p.currentPrice)} 전후</span>
           </div>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-4 lg:grid-cols-6">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
             {related.map((r) => (
               <ProductCard key={r.id} product={r} showRange />
             ))}
           </div>
         </section>
       )}
+      {/* 모바일: 하단 고정 구매 버튼 (하단 탭바 바로 위) */}
+      <div className="h-16 sm:hidden" />
+      <div className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-30 border-t border-gray-200 bg-white/95 px-4 py-2 backdrop-blur sm:hidden dark:border-gray-800 dark:bg-gray-950/95">
+        <a
+          href={affiliate}
+          target="_blank"
+          rel="noopener noreferrer nofollow sponsored"
+          className="flex items-center justify-between gap-3 rounded-xl bg-blue-600 px-4 py-2.5 text-white"
+        >
+          <span className="text-[15px] font-extrabold">{won(p.currentPrice)}</span>
+          <span className="text-sm font-bold">쿠팡에서 최저가 보기 ›</span>
+        </a>
+      </div>
     </article>
   );
 }

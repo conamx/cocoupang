@@ -31,7 +31,7 @@ export function ProductSection({
           </Link>
         )}
       </div>
-      <div className="grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {products.map((p, i) => (
           <ProductCard key={p.id} product={p} rank={ranked ? i + 1 : undefined} />
         ))}

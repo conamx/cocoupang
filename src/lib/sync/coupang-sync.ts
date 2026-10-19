@@ -68,7 +68,7 @@ export async function syncCoupang(): Promise<CoupangSyncResult> {
   };
 
   // 1) 카테고리 베스트
-  for (const c of coupangCategories) {
+  for (const c of coupangCategories.filter((x) => /^\d+$/.test(x.id))) {
     try {
       add((await fetchBestCategory(c.id, bestLimit)) ?? [], 'best', () => c);
     } catch (e) {

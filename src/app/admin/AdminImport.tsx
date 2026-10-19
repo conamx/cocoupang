@@ -1,5 +1,7 @@
 'use client';
 
+import { bannerCropStyle } from '@/lib/image';
+
 import { useEffect, useState } from 'react';
 import { badImageReason, isAffiliateLink, parsePaste, parsePrice, parseTableRows, type ParsedRow } from '@/lib/manual-import';
 import { parseTable } from '@/lib/post-import';
@@ -271,7 +273,7 @@ export function AdminImport() {
                     <td className="p-2">
                       {r.image ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={r.image} alt="" referrerPolicy="no-referrer" className="h-12 w-12 rounded object-cover" />
+                        <img src={r.image} alt="" referrerPolicy="no-referrer" className="h-12 w-12 rounded object-cover" style={bannerCropStyle(r.image)} />
                       ) : (
                         <div className="h-12 w-12 rounded bg-gray-100 dark:bg-gray-800" />
                       )}

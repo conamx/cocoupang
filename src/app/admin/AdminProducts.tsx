@@ -1,5 +1,7 @@
 'use client';
 
+import { bannerCropStyle } from '@/lib/image';
+
 import { useCallback, useEffect, useState } from 'react';
 import { badImageReason, parsePrice } from '@/lib/manual-import';
 import { coupangCategories, etcCategory } from '@/lib/site';
@@ -181,7 +183,7 @@ export function AdminProducts({ adminKey }: { adminKey: string }) {
                 <tr key={p.id} className={e && Object.keys(e).length ? 'bg-amber-50/60 dark:bg-amber-950/30' : ''}>
                   <td className="p-2 align-top">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={img} alt="" referrerPolicy="no-referrer" className="h-14 w-14 rounded object-cover" />
+                    <img src={img} alt="" referrerPolicy="no-referrer" className="h-14 w-14 rounded object-cover" style={bannerCropStyle(img)} />
                   </td>
                   <td className="space-y-1 p-2 align-top">
                     <input value={e.name ?? p.name} onChange={(ev) => edit(p.id, { name: ev.target.value })} className={input} />

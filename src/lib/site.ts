@@ -19,7 +19,9 @@ export const site = {
 
 // 쿠팡 카테고리 — id 는 파트너스 API 베스트 카테고리 번호와 동일 (딜바고 구조 참고)
 // 카테고리를 늘릴수록 매일 수집되는 상품(=검색 노출용 페이지)이 늘어납니다.
+// id 가 숫자가 아닌 것(pc)은 사이트 전용 분류 — 쿠팡 API 베스트 수집에서는 건너뜀
 export const coupangCategories: { id: string; label: string }[] = [
+  { id: 'pc', label: 'PC부품' },
   { id: '1012', label: '식품' },
   { id: '1013', label: '주방용품' },
   { id: '1014', label: '생활용품' },

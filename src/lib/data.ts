@@ -3,7 +3,7 @@ import { seedProducts } from '@/lib/seed/products';
 import { seedDeals } from '@/lib/seed/deals';
 import { seedPosts } from '@/lib/seed/posts';
 import { seedBrands } from '@/lib/seed/brands';
-import { coupangCategories } from '@/lib/site';
+import { coupangCategories, etcCategory } from '@/lib/site';
 import { discountRate, dropRate } from '@/lib/format';
 
 /**
@@ -52,7 +52,7 @@ export async function getProductSections(perSection = 12, perCategory = 6): Prom
       .filter((p) => p.prevPrice && p.prevPrice > p.currentPrice)
       .sort((a, b) => dropRate(b) - dropRate(a))
       .slice(0, perSection),
-    byCategory: coupangCategories
+    byCategory: [...coupangCategories, etcCategory]
       .map((c) => ({ ...c, products: all.filter((p) => p.categoryId === c.id).slice(0, perCategory) }))
       .filter((c) => c.products.length > 0),
   };
