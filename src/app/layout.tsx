@@ -6,6 +6,8 @@ import { SiteHeader } from '@/components/SiteHeader';
 import { SiteFooter } from '@/components/SiteFooter';
 import { MobileTabBar } from '@/components/MobileTabBar';
 import { Analytics } from '@/components/Analytics';
+import { NaverAnalytics } from '@/components/NaverAnalytics';
+import { Suspense } from 'react';
 
 export const viewport: Viewport = {
   themeColor: [
@@ -74,6 +76,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SiteFooter />
         <div className="h-[calc(3.75rem+env(safe-area-inset-bottom))] sm:hidden" aria-hidden />
         <MobileTabBar />
+        <Suspense fallback={null}>
+          <NaverAnalytics />
+        </Suspense>
       </body>
     </html>
   );

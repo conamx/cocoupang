@@ -23,6 +23,24 @@ const pct = (a: number, b: number) => Math.round(((a - b) / b) * 1000) / 10;
 
 export type Faq = { q: string; a: string };
 
+/** 질문용 짧은 상품명: 첫 쉼표 앞, 괄호 제거, 앞 4단어·24자 이내 ("AMD 라이젠5 5세대 7500F") */
+export function shortName(name: string): string {
+  const base = name.split(',')[0].replace(/[(\[][^)\]]*[)\]]/g, ' ').replace(/\s+/g, ' ').trim() || name;
+  let out = '';
+  for (const w of base.split(' ').slice(0, 4)) {
+    if (out && (out + ' ' + w).length > 24) break;
+    out = out ? `${out} ${w}` : w;
+  }
+  return out || base.slice(0, 24);
+}
+
+// 상품마다 고정으로 다른 문장을 고르기 위한 간단한 해시 (같은 상품은 항상 같은 문장)
+function pick<T>(list: T[], seed: string, salt: number): T {
+  let h = salt;
+  for (const ch of seed) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return list[h % list.length];
+}
+
 /**
  * 상품 소개 칸 해석: 본문 + 상품별 FAQ.
  * 소개 칸에 "Q. 질문" / "A. 답" 줄을 쓰면 '자주 묻는 질문'으로 들어감 (매크로 AI·관리자 공용 형식)
@@ -87,9 +105,14 @@ export function productSummary(p: Product): { intro: string; paragraphs: string[
     `쿠팡 가격은 할인 쿠폰·재고·판매자에 따라 수시로 바뀌므로, 구매 전 쿠팡 상품 페이지에서 최종 가격을 꼭 확인하세요.`,
   );
 
+  const sn = shortName(p.name);
   const priceFaq: Faq[] = [
     {
-      q: `${p.name} 지금 사도 될까요?`,
+      q: pick(
+        [`${sn}, 지금 사도 될까요?`, `${sn} 지금 구매해도 괜찮을까요?`, `${sn} 지금 가격, 싼 편인가요?`, `${sn} 언제 사는 게 좋을까요?`],
+        p.id,
+        1,
+      ),
       a:
         n < 2
           ? `아직 가격 기록이 적어 비교가 어려워요. 현재 가격은 ${won(p.currentPrice)}이며, 앞으로 쌓이는 가격 추이를 참고해 주세요.`
@@ -98,17 +121,17 @@ export function productSummary(p: Product): { intro: string; paragraphs: string[
             : `현재 ${won(p.currentPrice)}으로 역대 최저가(${won(p.lowestPrice)})보다 ${won(overLow)} 높아요. ${vsAvg > 0 ? '가격 하락을 기다려 보는 것을 추천해요.' : '평균보다는 저렴한 편이에요.'}`,
     },
     {
-      q: `${p.name} 역대 최저가는 얼마인가요?`,
+      q: pick([`${sn} 역대 최저가는 얼마인가요?`, `${sn} 가장 쌌을 때 가격은요?`, `${sn} 최저가 기록이 궁금해요`], p.id, 2),
       a: `셰어인포 기록 기준 역대 최저가는 ${won(p.lowestPrice)}${lowPoint && n >= 2 ? `(${kDate(lowPoint.observedAt)})` : ''}이고, 최고가는 ${won(p.highestPrice)}입니다.`,
     },
     {
-      q: '가격은 얼마나 자주 업데이트되나요?',
+      q: pick(['가격은 얼마나 자주 업데이트되나요?', '가격 정보는 언제 갱신되나요?'], p.id, 3),
       a: '쿠팡 가격을 확인할 때마다 기록하며, 같은 날 여러 번 확인해도 하루 한 건으로 남깁니다. 기록은 그래프와 가격 이력에 바로 반영돼요.',
     },
   ];
 
-  // 상품별 FAQ(소개 칸의 Q/A)가 있으면 앞에, 가격 FAQ 는 '업데이트 주기' 질문을 빼고 뒤에
-  const faq: Faq[] = custom.faq.length ? [...custom.faq, ...priceFaq.slice(0, 2)] : priceFaq;
+  // 상품별 질문이 있으면 가격 질문은 '지금 사도 될까요' 1개만
+  const faq: Faq[] = custom.faq.length ? [...custom.faq, priceFaq[0]] : priceFaq;
 
   // 검색 결과 설명: 상품 소개가 있으면 첫 문장 + 가격, 없으면 가격 위주
   const intro = custom.intro.replace(/\s+/g, ' ').trim();
