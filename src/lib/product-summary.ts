@@ -23,7 +23,34 @@ const pct = (a: number, b: number) => Math.round(((a - b) / b) * 1000) / 10;
 
 export type Faq = { q: string; a: string };
 
-export function productSummary(p: Product): { paragraphs: string[]; faq: Faq[]; meta: string } {
+/**
+ * 상품 소개 칸 해석: 본문 + 상품별 FAQ.
+ * 소개 칸에 "Q. 질문" / "A. 답" 줄을 쓰면 '자주 묻는 질문'으로 들어감 (매크로 AI·관리자 공용 형식)
+ */
+export function splitDescription(desc?: string): { intro: string; faq: Faq[] } {
+  const intro: string[] = [];
+  const faq: Faq[] = [];
+  let cur: Faq | undefined;
+  for (const raw of (desc ?? '').split(/\n/)) {
+    const line = raw.trim();
+    const q = line.match(/^Q\s*[.:)]\s*(.+)$/i);
+    const a = line.match(/^A\s*[.:)]\s*(.+)$/i);
+    if (q) {
+      cur = { q: q[1].trim(), a: '' };
+      faq.push(cur);
+    } else if (a && cur) {
+      cur.a = a[1].trim();
+    } else if (line && cur && cur.a) {
+      cur.a += ' ' + line; // 답이 여러 줄
+    } else if (line && !cur) {
+      intro.push(line);
+    }
+  }
+  return { intro: intro.join('\n'), faq: faq.filter((f) => f.q && f.a).slice(0, 5) };
+}
+
+export function productSummary(p: Product): { intro: string; paragraphs: string[]; faq: Faq[]; meta: string } {
+  const custom = splitDescription(p.description);
   const hist = [...p.history].sort((a, b) => a.observedAt.localeCompare(b.observedAt));
   const n = hist.length;
   const first = hist[0];
@@ -60,7 +87,7 @@ export function productSummary(p: Product): { paragraphs: string[]; faq: Faq[]; 
     `쿠팡 가격은 할인 쿠폰·재고·판매자에 따라 수시로 바뀌므로, 구매 전 쿠팡 상품 페이지에서 최종 가격을 꼭 확인하세요.`,
   );
 
-  const faq: Faq[] = [
+  const priceFaq: Faq[] = [
     {
       q: `${p.name} 지금 사도 될까요?`,
       a:
@@ -80,11 +107,15 @@ export function productSummary(p: Product): { paragraphs: string[]; faq: Faq[]; 
     },
   ];
 
+  // 상품별 FAQ(소개 칸의 Q/A)가 있으면 앞에, 가격 FAQ 는 '업데이트 주기' 질문을 빼고 뒤에
+  const faq: Faq[] = custom.faq.length ? [...custom.faq, ...priceFaq.slice(0, 2)] : priceFaq;
+
   // 검색 결과 설명: 상품 소개가 있으면 첫 문장 + 가격, 없으면 가격 위주
-  const intro = p.description?.replace(/\s+/g, ' ').trim();
+  const intro = custom.intro.replace(/\s+/g, ' ').trim();
   if (intro) {
     const firstSentence = intro.match(/^.{20,110}?[.!?。](\s|$)/)?.[0]?.trim() ?? intro.slice(0, 100);
     return {
+      intro: custom.intro,
       paragraphs,
       faq,
       meta: `${firstSentence} 쿠팡 현재가 ${won(p.currentPrice)}, 역대 최저가 ${won(p.lowestPrice)} — 가격 변동 추이를 확인하세요.`,
@@ -94,5 +125,5 @@ export function productSummary(p: Product): { paragraphs: string[]; faq: Faq[]; 
     `${p.name} 쿠팡 현재가 ${won(p.currentPrice)}, 역대 최저가 ${won(p.lowestPrice)}.` +
     (n >= 2 ? ` ${n}회 가격 기록으로 본 가격 변동 추이와 구매 타이밍을 확인하세요.` : ' 가격 변동 추이를 확인하세요.');
 
-  return { paragraphs, faq, meta };
+  return { intro: custom.intro, paragraphs, faq, meta };
 }

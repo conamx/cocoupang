@@ -89,7 +89,7 @@ export function AdminProducts({ adminKey }: { adminKey: string }) {
         setStatus((s) => ({ ...s, [p.id]: '가격을 숫자로 입력하세요' }));
         return false;
       }
-      if (price !== p.price || stale) body.price = price; // 가격 확인 모드에선 같은 가격도 '오늘 확인'으로 기록
+      body.price = price; // 같은 가격이어도 저장 = '오늘 이 가격 확인'으로 기록 (갱신일·가격 이력)
     }
     if (Object.keys(body).length === 1) {
       setEdits((x) => {
@@ -194,8 +194,8 @@ export function AdminProducts({ adminKey }: { adminKey: string }) {
                     <textarea
                       value={e.description ?? p.description ?? ''}
                       onChange={(ev) => edit(p.id, { description: ev.target.value })}
-                      rows={2}
-                      placeholder="상품 소개 (어떤 상품인지 2~4문장) — 비워두면 매크로가 다음에 채움"
+                      rows={3}
+                      placeholder={'상품 소개 (어떤 상품인지 2~4문장) — 비워두면 매크로가 채움\n상품별 질문은 줄마다  Q. 질문  /  A. 답'}
                       className={`${input} text-[12px]`}
                     />
                     <p className="text-[11px] text-gray-400">
@@ -213,8 +213,8 @@ export function AdminProducts({ adminKey }: { adminKey: string }) {
                         if (ev.key !== 'Enter') return;
                         ev.preventDefault();
                         const cur = edits[p.id] ?? {};
-                        // 가격 확인 모드: 값을 안 바꿔도 Enter = 오늘 가격 확인
-                        const ok = await save(p, stale ? { ...cur, priceText: cur.priceText ?? String(p.price) } : cur);
+                        // 값을 안 바꿔도 Enter = 오늘 이 가격 확인
+                        const ok = await save(p, { ...cur, priceText: cur.priceText ?? String(p.price) });
                         if (ok) (document.querySelector(`[data-price-idx="${i + 1}"]`) as HTMLInputElement | null)?.focus();
                       }}
                       inputMode="numeric"
@@ -239,8 +239,8 @@ export function AdminProducts({ adminKey }: { adminKey: string }) {
                   </td>
                   <td className="space-y-1 p-2 align-top text-xs">
                     <button
-                      onClick={() => void save(p)}
-                      disabled={!edits[p.id]}
+                      // 아무것도 안 바꾸고 눌러도 '오늘 이 가격 확인'으로 저장
+                      onClick={() => void save(p, { ...edits[p.id], priceText: edits[p.id]?.priceText ?? String(p.price) })}
                       className="w-full rounded bg-blue-600 py-1 font-bold text-white disabled:opacity-30"
                     >
                       저장

@@ -51,7 +51,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
     '@type': 'Product',
     name: p.name,
     image: [p.image],
-    description: p.description ?? `${p.name} 쿠팡 최저가와 가격 변동 추이. 역대 최저 ${won(p.lowestPrice)}.`,
+    description: summary.intro || `${p.name} 쿠팡 최저가와 가격 변동 추이. 역대 최저 ${won(p.lowestPrice)}.`,
     offers: {
       '@type': 'Offer',
       price: p.currentPrice,
@@ -145,11 +145,11 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         </div>
       </div>
 
-      {p.description && (
+      {summary.intro && (
         <section className="mb-8">
           <h2 className="mb-2 text-base font-bold">상품 소개</h2>
           <div className="space-y-2 rounded-2xl border border-gray-200 bg-white p-4 text-[14px] leading-relaxed text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300">
-            {p.description.split(/\n+/).map((t, i) => (
+            {summary.intro.split(/\n+/).map((t, i) => (
               <p key={i}>{t}</p>
             ))}
           </div>
