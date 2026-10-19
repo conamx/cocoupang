@@ -17,7 +17,7 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL(site.url),
   title: {
-    default: `${site.name} — 핫딜·쿠팡 최저가 모아보기`,
+    default: `${site.name} — 쿠팡 최저가·가격 변동 조회`,
     template: `%s - ${site.name}`,
   },
   description: site.description,
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     siteName: site.name,
     locale: 'ko_KR',
     url: site.url,
-    title: `${site.name} — 핫딜·쿠팡 최저가 모아보기`,
+    title: `${site.name} — 쿠팡 최저가·가격 변동 조회`,
     description: site.description,
     images: [{ url: '/og.png', width: 1200, height: 630, alt: site.name }],
   },

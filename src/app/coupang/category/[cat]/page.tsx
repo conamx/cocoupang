@@ -29,10 +29,18 @@ export default async function CategoryPage({ params }: { params: Promise<{ cat: 
   const c = find((await params).cat);
   if (!c) notFound();
   const products = await getProducts(c.id, 120);
+  const atLowest = products.filter((p) => p.highestPrice > p.lowestPrice && p.currentPrice <= p.lowestPrice).length;
 
   return (
     <div>
-      <h1 className="mb-4 text-xl font-bold">{c.label} 쿠팡 최저가</h1>
+      <h1 className="text-xl font-bold">{c.label} 쿠팡 최저가</h1>
+      {products.length > 0 && (
+        <p className="mb-4 mt-1.5 text-[13px] leading-relaxed text-gray-500">
+          쿠팡 {c.label} 상품 {products.length}개의 오늘 가격과 역대 최저가를 매일 기록해 비교합니다.
+          {atLowest > 0 && ` 지금 역대 최저가인 상품은 ${atLowest}개예요.`} 상품을 누르면 가격 변동 추이를 볼 수 있어요.
+        </p>
+      )}
+      {products.length === 0 && <div className="mb-4" />}
       <CategoryChips active={c.id} />
       {products.length === 0 ? (
         <p className="py-16 text-center text-sm text-gray-400">이 카테고리에 추적 중인 상품이 아직 없습니다.</p>

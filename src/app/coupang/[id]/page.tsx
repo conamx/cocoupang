@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { productSummary } from '@/lib/product-summary';
 import { RemoteImg } from '@/components/RemoteImg';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
@@ -26,7 +27,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const p = await getProduct(id);
   if (!p) return {};
   const title = `${p.name} 가격 추이·최저가`;
-  const description = `${p.name}의 쿠팡 가격 변동 추이와 역대 최저가(${won(p.lowestPrice)})를 확인하세요.`;
+  const description = productSummary(p).meta;
   return {
     title,
     description,
@@ -43,6 +44,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   if (!p) notFound();
   const related = await getRelatedProducts(id, 12);
   const affiliate = coupangLink(p);
+  const summary = productSummary(p);
 
   const productJsonLd = {
     '@context': 'https://schema.org',
@@ -58,6 +60,15 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       url: `${site.url}/coupang/${p.id}`,
     },
   };
+  const faqJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: summary.faq.map((f) => ({
+      '@type': 'Question',
+      name: f.q,
+      acceptedAnswer: { '@type': 'Answer', text: f.a },
+    })),
+  };
   const breadcrumbJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
@@ -72,6 +83,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
     <article>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
 
       <nav aria-label="breadcrumb" className="mb-3 flex items-center gap-1 text-xs text-gray-400">
         <Link href="/coupang" className="hover:text-blue-600">쿠팡최저가</Link>
@@ -134,6 +146,15 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       </div>
 
       <section className="mb-8">
+        <h2 className="mb-2 text-base font-bold">상품 가격 정보</h2>
+        <div className="space-y-2 rounded-2xl border border-gray-200 bg-white p-4 text-[14px] leading-relaxed text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300">
+          {summary.paragraphs.map((t, i) => (
+            <p key={i}>{t}</p>
+          ))}
+        </div>
+      </section>
+
+      <section className="mb-8">
         <h2 className="mb-2 text-base font-bold">가격 변동 추이</h2>
         <div className="rounded-2xl border border-gray-200 p-4 dark:border-gray-800">
           <PriceChart history={p.history} />
@@ -164,6 +185,18 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               ))}
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <section className="mb-8">
+        <h2 className="mb-2 text-base font-bold">자주 묻는 질문</h2>
+        <div className="divide-y divide-gray-100 rounded-2xl border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-950">
+          {summary.faq.map((f) => (
+            <details key={f.q} className="group px-4 py-3" open>
+              <summary className="cursor-pointer list-none text-[14px] font-semibold">Q. {f.q}</summary>
+              <p className="mt-1.5 text-[14px] leading-relaxed text-gray-600 dark:text-gray-400">{f.a}</p>
+            </details>
+          ))}
         </div>
       </section>
 
