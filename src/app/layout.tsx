@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     template: `%s - ${site.name}`,
   },
   description: site.description,
-  alternates: { canonical: '/' },
+  // 대표 주소(canonical)는 페이지마다 따로 지정 — 여기 두면 하위 페이지가 전부 홈을 대표 주소로 물려받음
   openGraph: {
     type: 'website',
     siteName: site.name,
@@ -29,13 +29,16 @@ export const metadata: Metadata = {
     url: site.url,
     title: `${site.name} — 핫딜·쿠팡 최저가 모아보기`,
     description: site.description,
+    images: [{ url: '/og.png', width: 1200, height: 630, alt: site.name }],
   },
-  twitter: { card: 'summary_large_image' },
+  twitter: { card: 'summary_large_image', images: ['/og.png'] },
   robots: { index: true, follow: true },
-  // 운영 시 서치콘솔/서치어드바이저에서 발급받은 값으로 교체하세요.
+  // 구글 서치콘솔·네이버 서치어드바이저 소유확인 — 발급받은 코드를 아래에 넣거나 Netlify 환경변수로 설정
   verification: {
-    google: '',
-    other: { 'naver-site-verification': '' },
+    google: process.env.GOOGLE_SITE_VERIFICATION || undefined,
+    other: {
+      'naver-site-verification': process.env.NAVER_SITE_VERIFICATION || '52473b37f785d8e1f23fe9031f494dbe13bdffe7',
+    },
   },
 };
 
@@ -62,6 +65,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <ThemeScript />
         <Analytics />
+        <link rel="alternate" type="application/rss+xml" title={site.name} href={`${site.url}/feed.xml`} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }} />
       </head>
       <body className="flex min-h-full flex-col bg-gray-50 text-gray-900 dark:bg-black dark:text-gray-100">
