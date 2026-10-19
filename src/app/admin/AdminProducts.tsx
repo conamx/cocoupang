@@ -5,6 +5,7 @@ import { bannerCropStyle } from '@/lib/image';
 import { useCallback, useEffect, useState } from 'react';
 import { badImageReason, parsePrice } from '@/lib/manual-import';
 import { coupangCategories, etcCategory } from '@/lib/site';
+import { productPath } from '@/lib/product-url';
 
 const CATS = [...coupangCategories, etcCategory];
 const PAGE = 50;
@@ -246,7 +247,7 @@ export function AdminProducts({ adminKey }: { adminKey: string }) {
                       저장
                     </button>
                     <div className="flex gap-1">
-                      <a href={`/coupang/${p.id}`} target="_blank" className="flex-1 rounded border border-gray-200 py-1 text-center dark:border-gray-700">
+                      <a href={productPath(p)} target="_blank" className="flex-1 rounded border border-gray-200 py-1 text-center dark:border-gray-700">
                         페이지
                       </a>
                       <a href={p.buyUrl} target="_blank" rel="noreferrer" className="flex-1 rounded border border-gray-200 py-1 text-center dark:border-gray-700">

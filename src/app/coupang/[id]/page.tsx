@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { productSummary } from '@/lib/product-summary';
 import { RemoteImg } from '@/components/RemoteImg';
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
+import { decodedParam, productIdFromParam, productPath, productSlug } from '@/lib/product-url';
 import { getProduct, getProducts, getRelatedProducts } from '@/lib/data';
 import { won, isoDate, coupangLink } from '@/lib/format';
 import { site } from '@/lib/site';
@@ -19,30 +20,33 @@ export const revalidate = 86400;
 export async function generateStaticParams() {
   // 인기 상위만 빌드 때 생성, 나머지는 첫 방문 시 생성 후 캐시 (빌드 시간·크레딧 절약)
   const products = await getProducts(undefined, 100);
-  return products.map((p) => ({ id: p.id }));
+  return products.map((p) => ({ id: productSlug(p) }));
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
-  const { id } = await params;
-  const p = await getProduct(id);
+  const id = productIdFromParam((await params).id);
+  const p = id ? await getProduct(id) : undefined;
   if (!p) return {};
   const title = `${p.name} 가격 추이·최저가`;
   const description = productSummary(p).meta;
   return {
     title,
     description,
-    alternates: { canonical: `/coupang/${p.id}` },
-    openGraph: { title, description, images: [p.image], url: `${site.url}/coupang/${p.id}` },
+    alternates: { canonical: productPath(p) },
+    openGraph: { title, description, images: [p.image], url: `${site.url}${productPath(p)}` },
     twitter: { card: 'summary_large_image', title, description, images: [p.image] },
     keywords: ['최저가', '가격비교', '쿠팡', p.name, p.categoryLabel],
   };
 }
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const p = await getProduct(id);
+  const param = (await params).id;
+  const id = productIdFromParam(param);
+  const p = id ? await getProduct(id) : undefined;
   if (!p) notFound();
-  const related = await getRelatedProducts(id, 12);
+  // 예전 주소(/coupang/{ID})나 상품명이 바뀐 주소 → 현재 주소로 영구 이동 (검색엔진도 새 주소로 갱신)
+  if (decodedParam(param) !== productSlug(p)) permanentRedirect(productPath(p));
+  const related = await getRelatedProducts(p.id, 12);
   const affiliate = coupangLink(p);
   const summary = productSummary(p);
 
@@ -57,7 +61,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       price: p.currentPrice,
       priceCurrency: 'KRW',
       availability: 'https://schema.org/InStock',
-      url: `${site.url}/coupang/${p.id}`,
+      url: `${site.url}${productPath(p)}`,
     },
   };
   const faqJsonLd = {
@@ -75,7 +79,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
     itemListElement: [
       { '@type': 'ListItem', position: 1, name: '쿠팡최저가', item: `${site.url}/coupang` },
       { '@type': 'ListItem', position: 2, name: p.categoryLabel, item: `${site.url}/coupang/category/${p.categoryId}` },
-      { '@type': 'ListItem', position: 3, name: p.name, item: `${site.url}/coupang/${p.id}` },
+      { '@type': 'ListItem', position: 3, name: p.name, item: `${site.url}${productPath(p)}` },
     ],
   };
 
@@ -134,7 +138,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               id={p.id}
               title={p.name}
               image={p.image}
-              href={`/coupang/${p.id}`}
+              href={productPath(p)}
               price={won(p.currentPrice)}
             />
           </div>

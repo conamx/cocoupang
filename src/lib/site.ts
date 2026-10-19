@@ -41,3 +41,24 @@ export const coupangCategories: { id: string; label: string }[] = [
 
 // 카테고리 매칭이 안 되는 상품(골드박스·검색 결과 일부)이 들어가는 곳
 export const etcCategory = { id: 'etc', label: '기타' };
+
+// 카테고리 그리드 아이콘
+export const categoryIcons: Record<string, string> = {
+  pc: '🖥️',
+  '1012': '🍎',
+  '1013': '🍳',
+  '1014': '🧴',
+  '1010': '💄',
+  '1011': '👶',
+  '1016': '💻',
+  '1015': '🛋️',
+  '1017': '⚽',
+  '1024': '💊',
+  '1029': '🐶',
+  '1018': '🚗',
+  '1020': '🧸',
+  '1021': '📎',
+  '1001': '👗',
+  '1002': '👔',
+  etc: '🏷️',
+};

@@ -19,8 +19,8 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL(site.url),
   title: {
-    default: `${site.name} — 쿠팡 최저가·가격 변동 조회`,
-    template: `%s - ${site.name}`,
+    default: `쿠팡 최저가 모아보기 · 가격 변동 조회 | ${site.name}`,
+    template: `%s | ${site.name}`,
   },
   description: site.description,
   // 대표 주소(canonical)는 페이지마다 따로 지정 — 여기 두면 하위 페이지가 전부 홈을 대표 주소로 물려받음
@@ -29,7 +29,7 @@ export const metadata: Metadata = {
     siteName: site.name,
     locale: 'ko_KR',
     url: site.url,
-    title: `${site.name} — 쿠팡 최저가·가격 변동 조회`,
+    title: `쿠팡 최저가 모아보기 · 가격 변동 조회 | ${site.name}`,
     description: site.description,
     images: [{ url: '/og.png', width: 1200, height: 630, alt: site.name }],
   },

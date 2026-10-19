@@ -1,6 +1,7 @@
 import { site } from '@/lib/site';
 import { getDeals, getPosts, getProducts } from '@/lib/data';
 import { won } from '@/lib/format';
+import { productPath } from '@/lib/product-url';
 
 // 네이버 서치어드바이저 'RSS 제출'용 — 새 상품·정보글·핫딜을 최신순으로
 export const revalidate = 3600;
@@ -16,7 +17,7 @@ export async function GET() {
   const list: Item[] = [
     ...products.map((p) => ({
       title: `${p.name} 최저가`,
-      link: `${site.url}/coupang/${p.id}`,
+      link: `${site.url}${productPath(p)}`,
       category: p.categoryLabel,
       date: p.updatedAt,
       description: `${p.name} 쿠팡 현재가 ${won(p.currentPrice)}, 역대 최저가 ${won(p.lowestPrice)}. 가격 변동 추이를 확인하세요.`,

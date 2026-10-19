@@ -137,8 +137,8 @@ export const dbData = {
     };
   },
   async getProductIndex() {
-    const rows = await db().select({ id: P.id, updatedAt: P.updatedAt }).from(P);
-    return rows.map((r) => ({ id: r.id, updatedAt: r.updatedAt.toISOString() }));
+    const rows = await db().select({ id: P.id, name: P.name, updatedAt: P.updatedAt }).from(P);
+    return rows.map((r) => ({ id: r.id, name: r.name, updatedAt: r.updatedAt.toISOString() }));
   },
   async getDeals(limit?: number): Promise<Deal[]> {
     const q = db().select().from(schema.deals).orderBy(desc(schema.deals.postedAt));

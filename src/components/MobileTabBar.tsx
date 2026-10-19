@@ -3,7 +3,7 @@ import Link from 'next/link';
 const tabs = [
   { href: '/', label: '홈', icon: 'M3 10.5 12 3l9 7.5M5 9.5V21h14V9.5M9.5 21v-6h5v6' },
   { href: '/coupang', label: '최저가', icon: 'M3.5 17l5-5 4 4 8-8M15.5 8h5v5' },
-  { href: '/travel', label: '할인코드', icon: 'M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 1 0 0 4v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 1 0 0-4V8Z' },
+  { href: '/coupang/category', label: '카테고리', icon: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z' },
   { href: '/search', label: '검색', icon: 'M11 17.5a6.5 6.5 0 1 1 0-13 6.5 6.5 0 0 1 0 13zM16 16l4.5 4.5' },
   { href: '/blog', label: '정보', icon: 'M4 5h16M4 12h16M4 19h10' },
 ];

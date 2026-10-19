@@ -3,13 +3,14 @@ import { RemoteImg } from '@/components/RemoteImg';
 import type { Product } from '@/lib/types';
 import { coupangLink, won } from '@/lib/format';
 import { PriceChange } from '@/components/PriceChange';
+import { productPath } from '@/lib/product-url';
 
 /** 등록·갱신 3일 이내면 NEW */
 const isNew = (iso: string) => Date.now() - new Date(iso).getTime() < 3 * 86_400_000;
 
 export function ProductCard({ product, rank, showRange }: { product: Product; rank?: number; showRange?: boolean }) {
   const atLow = product.currentPrice <= product.lowestPrice && product.highestPrice > product.lowestPrice;
-  const href = `/coupang/${product.id}`;
+  const href = productPath(product);
   return (
     <div className="group flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white transition hover:-translate-y-0.5 hover:shadow-lg dark:border-gray-800 dark:bg-gray-900">
       <Link href={href} className="relative block aspect-square w-full overflow-hidden bg-white">

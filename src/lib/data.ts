@@ -59,9 +59,9 @@ export async function getProductSections(perSection = 12, perCategory = 6): Prom
 }
 
 /** 사이트맵용 (id·수정일만) */
-export async function getProductIndex(): Promise<{ id: string; updatedAt: string }[]> {
+export async function getProductIndex(): Promise<{ id: string; name: string; updatedAt: string }[]> {
   if (useDb()) return (await repo()).getProductIndex();
-  return seedProducts.map((p) => ({ id: p.id, updatedAt: p.updatedAt }));
+  return seedProducts.map((p) => ({ id: p.id, name: p.name, updatedAt: p.updatedAt }));
 }
 
 export async function getProduct(id: string): Promise<Product | null> {

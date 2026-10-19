@@ -31,7 +31,7 @@ export async function SiteFooter() {
         </div>
 
         <p className="mt-3 text-[11px] leading-relaxed text-gray-500 dark:text-gray-400">
-          {site.name}는 커뮤니티에 공유된 핫딜 정보를 모아 보여주는 서비스이며, 상품 판매에 직접 관여하지 않습니다.
+          {site.name}는 쿠팡 상품의 가격을 기록해 최저가 정보를 보여주는 서비스이며, 상품 판매에 직접 관여하지 않습니다.
           <br />
           {site.partnersDisclosure}
         </p>

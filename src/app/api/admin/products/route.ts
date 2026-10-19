@@ -5,6 +5,7 @@ import { isAdmin } from '@/lib/admin-auth';
 import { badImageReason, cleanDescription, isAffiliateLink, parsePaste, productIdFromUrl, type ParsedRow } from '@/lib/manual-import';
 import { coupangCategories, etcCategory, site } from '@/lib/site';
 import { upsertProducts, type UpsertRow } from '@/lib/sync/upsert';
+import { productPath } from '@/lib/product-url';
 
 /**
  * 관리자 상품 API (헤더 x-admin-key = ADMIN_PASSWORD)
@@ -40,7 +41,7 @@ function toAdminProduct(r: ProductRow) {
     description: r.description,
     affiliateUrl: r.affiliateUrl,
     buyUrl: r.affiliateUrl ?? `https://www.coupang.com/vp/products/${r.id}`,
-    pageUrl: `${site.url}/coupang/${r.id}`,
+    pageUrl: `${site.url}${productPath(r)}`,
     source: r.source,
     updatedAt: r.updatedAt.toISOString(),
   };
