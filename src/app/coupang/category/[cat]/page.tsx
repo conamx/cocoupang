@@ -11,8 +11,10 @@ export const revalidate = 86400;
 const all = [...coupangCategories, etcCategory];
 const find = (id: string) => all.find((c) => c.id === id);
 
+// 빌드 때 미리 만들지 않고 첫 방문 때 만들어 캐시 (빌드 중 DB 호출이 몰려 시간 초과 나는 것 방지)
+export const dynamicParams = true;
 export function generateStaticParams() {
-  return all.map((c) => ({ cat: c.id }));
+  return [];
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ cat: string }> }): Promise<Metadata> {

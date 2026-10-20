@@ -4,7 +4,7 @@ import { RemoteImg } from '@/components/RemoteImg';
 import type { Metadata } from 'next';
 import { notFound, permanentRedirect } from 'next/navigation';
 import { decodedParam, productIdFromParam, productPath, productSlug } from '@/lib/product-url';
-import { getProduct, getProducts, getRelatedProducts } from '@/lib/data';
+import { getProduct, getRelatedProducts } from '@/lib/data';
 import { won, isoDate, coupangLink } from '@/lib/format';
 import { site } from '@/lib/site';
 import { PriceChart } from '@/components/PriceChart';
@@ -17,10 +17,10 @@ import { Comments } from '@/components/Comments';
 // 가격은 하루 1회 수집 → 수집 직후 /api/revalidate 로 갱신. 평소엔 하루 캐시(크레딧 절약).
 export const revalidate = 86400;
 
+// 빌드 때 미리 만들지 않고 첫 방문 때 만들어 캐시 (빌드 중 DB 호출이 몰려 시간 초과 나는 것 방지)
+export const dynamicParams = true;
 export async function generateStaticParams() {
-  // 인기 상위만 빌드 때 생성, 나머지는 첫 방문 시 생성 후 캐시 (빌드 시간·크레딧 절약)
-  const products = await getProducts(undefined, 100);
-  return products.map((p) => ({ id: productSlug(p) }));
+  return [];
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
