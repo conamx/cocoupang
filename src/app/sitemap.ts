@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next';
-import { site, coupangCategories, etcCategory } from '@/lib/site';
-import { getProductIndex, getDeals, getPosts, getBrands } from '@/lib/data';
+import { site } from '@/lib/site';
+import { getProductIndex, getDeals, getPosts, getBrands, getActiveCategories } from '@/lib/data';
 import { productPath } from '@/lib/product-url';
 
 // 예약 발행한 정보글이 발행일에 맞춰 들어가도록 1시간마다 새로 만든다
@@ -8,11 +8,12 @@ export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = site.url;
-  const [products, deals, posts, brands] = await Promise.all([
+  const [products, deals, posts, brands, activeCats] = await Promise.all([
     getProductIndex(),
     getDeals(5000),
     getPosts(),
     getBrands(),
+    getActiveCategories(),
   ]);
 
   const staticUrls: MetadataRoute.Sitemap = [
@@ -26,7 +27,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   return [
     ...staticUrls,
-    ...[...coupangCategories, etcCategory].map((c) => ({
+    ...activeCats.map((c) => ({
       url: `${base}/coupang/category/${c.id}`,
       changeFrequency: 'daily' as const,
       priority: 0.7,

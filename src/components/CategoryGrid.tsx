@@ -1,9 +1,11 @@
 import Link from 'next/link';
-import { categoryIcons, coupangCategories, etcCategory } from '@/lib/site';
+import { getActiveCategories } from '@/lib/data';
+import { categoryIcons } from '@/lib/site';
 
-/** 아이콘 카테고리 바로가기 (모바일 4열 · PC 8열) */
-export function CategoryGrid({ counts }: { counts?: Record<string, number> }) {
-  const cats = [...coupangCategories, etcCategory];
+/** 아이콘 카테고리 바로가기 (모바일 4열 · PC 6~9열) — 상품 있는 카테고리만, 많은 순 */
+export async function CategoryGrid() {
+  const cats = await getActiveCategories();
+  if (!cats.length) return null;
   return (
     <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-9">
       {cats.map((c) => (
@@ -17,7 +19,7 @@ export function CategoryGrid({ counts }: { counts?: Record<string, number> }) {
           </span>
           <span className="text-center text-[12px] font-semibold leading-tight text-gray-700 dark:text-gray-300">
             {c.label}
-            {counts?.[c.id] ? <span className="block text-[10px] font-normal text-gray-400">{counts[c.id]}개</span> : null}
+            <span className="block text-[11px] font-normal text-gray-400">{c.count.toLocaleString('ko-KR')}개</span>
           </span>
         </Link>
       ))}

@@ -64,7 +64,6 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-8">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <CategoryChips />
 
       <ProductSection title="새로 올라온 상품" href="/coupang" products={latest} />
@@ -120,6 +119,7 @@ export default async function HomePage() {
         </div>
       </section>
 
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       {/* 검색엔진용 제목 (화면에는 안 보임) */}
       <h1 className="sr-only">쿠팡 최저가 모음 · 셰어인포</h1>
     </div>

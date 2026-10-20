@@ -59,6 +59,25 @@ export async function getProductSections(perSection = 12, perCategory = 6): Prom
 }
 
 /** 사이트맵용 (id·수정일만) */
+/** 카테고리별 상품 수 (상품 없는 카테고리 숨기기·많은 순 정렬용) */
+export async function getCategoryCounts(): Promise<Record<string, number>> {
+  if (useDb()) return (await repo()).getCategoryCounts();
+  const out: Record<string, number> = {};
+  for (const p of seedProducts) out[p.categoryId] = (out[p.categoryId] ?? 0) + 1;
+  return out;
+}
+
+/** 상품이 있는 카테고리만, 상품 많은 순 ('기타'는 항상 맨 뒤) */
+export async function getActiveCategories(): Promise<{ id: string; label: string; count: number }[]> {
+  const counts = await getCategoryCounts();
+  const main = coupangCategories
+    .map((c) => ({ ...c, count: counts[c.id] ?? 0 }))
+    .filter((c) => c.count > 0)
+    .sort((a, b) => b.count - a.count);
+  const etc = counts[etcCategory.id] ? [{ ...etcCategory, count: counts[etcCategory.id] }] : [];
+  return [...main, ...etc];
+}
+
 export async function getProductIndex(): Promise<{ id: string; name: string; updatedAt: string }[]> {
   if (useDb()) return (await repo()).getProductIndex();
   return seedProducts.map((p) => ({ id: p.id, name: p.name, updatedAt: p.updatedAt }));

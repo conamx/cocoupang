@@ -1,6 +1,9 @@
 import type { Metadata } from 'next';
 import { CategoryGrid } from '@/components/CategoryGrid';
-import { coupangCategories, etcCategory, site } from '@/lib/site';
+import { getActiveCategories } from '@/lib/data';
+import { site } from '@/lib/site';
+
+export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: '쿠팡 카테고리별 최저가',
@@ -8,8 +11,8 @@ export const metadata: Metadata = {
   alternates: { canonical: '/coupang/category' },
 };
 
-export default function CategoryIndexPage() {
-  const cats = [...coupangCategories, etcCategory];
+export default async function CategoryIndexPage() {
+  const cats = await getActiveCategories();
   const jsonLd = [
     {
       '@context': 'https://schema.org',

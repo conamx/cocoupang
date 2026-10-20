@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { getProducts } from '@/lib/data';
+import { getCategoryCounts, getProducts } from '@/lib/data';
 import { coupangCategories, etcCategory } from '@/lib/site';
 import { CategoryChips } from '@/components/CategoryChips';
 import { ProductCard } from '@/components/ProductCard';
@@ -18,7 +18,10 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: { params: Promise<{ cat: string }> }): Promise<Metadata> {
   const c = find((await params).cat);
   if (!c) return {};
+  const count = (await getCategoryCounts())[c.id] ?? 0;
   return {
+    // 상품이 아직 없는 카테고리는 검색 노출 제외 (빈 페이지로 평가되지 않게)
+    ...(count === 0 ? { robots: { index: false, follow: true } } : {}),
     title: `${c.label} 쿠팡 최저가·인기 순위`,
     description: `쿠팡 ${c.label} 인기 상품의 오늘 가격, 역대 최저가, 가격 변동 추이를 한눈에 비교하세요.`,
     alternates: { canonical: `/coupang/category/${c.id}` },

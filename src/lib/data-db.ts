@@ -136,6 +136,13 @@ export const dbData = {
         .filter((c) => c.products.length > 0),
     };
   },
+  async getCategoryCounts() {
+    const rows = await db()
+      .select({ id: P.categoryId, n: sql<number>`count(*)::int` })
+      .from(P)
+      .groupBy(P.categoryId);
+    return Object.fromEntries(rows.map((r) => [r.id, r.n])) as Record<string, number>;
+  },
   async getProductIndex() {
     const rows = await db().select({ id: P.id, name: P.name, updatedAt: P.updatedAt }).from(P);
     return rows.map((r) => ({ id: r.id, name: r.name, updatedAt: r.updatedAt.toISOString() }));
