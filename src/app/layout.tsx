@@ -67,6 +67,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <ThemeScript />
         <Analytics />
+        {/* 구글 애드센스 */}
+        <script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8488005090036039"
+          crossOrigin="anonymous"
+        />
         <link rel="alternate" type="application/rss+xml" title={site.name} href={`${site.url}/feed.xml`} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }} />
       </head>
