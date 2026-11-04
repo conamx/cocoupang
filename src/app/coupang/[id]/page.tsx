@@ -142,8 +142,8 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               price={won(p.currentPrice)}
             />
           </div>
-          <p className="mt-2 text-[11px] text-gray-400">
-            쿠팡 파트너스 활동의 일환으로 이에 따른 일정액의 수수료를 제공받습니다.
+          <p className="mt-2 text-xs font-semibold text-amber-700 dark:text-amber-300">
+            {site.partnersDisclosure}
           </p>
 
         </div>

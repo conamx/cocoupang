@@ -46,7 +46,7 @@ export default async function BrandPage({ params }: { params: Promise<{ slug: st
         >
           {b.name} 할인코드 확인하기 →
         </a>
-        <p className="mt-2 text-[11px] text-gray-400">일부 링크는 제휴 링크로, 구매 시 수수료를 받을 수 있습니다.</p>
+        <p className="mt-2 text-[11px] text-gray-400">이 페이지의 일부 링크는 제휴 링크이며, 이를 통해 구매하면 일정액의 수수료를 제공받습니다.</p>
       </div>
     </article>
   );
