@@ -12,7 +12,6 @@ export const site = {
     { href: '/', label: '홈' },
     { href: '/coupang', label: '특가·최저가' },
     { href: '/deal', label: '핫딜모음' },
-    { href: '/travel', label: '할인코드' },
     { href: '/blog', label: '정보' },
   ],
 } as const;

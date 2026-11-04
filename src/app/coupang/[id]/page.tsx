@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { productSummary } from '@/lib/product-summary';
+import { PostDisclosure, SHOW_POST_DISCLOSURE } from '@/components/PartnersDisclosure';
 import { RemoteImg } from '@/components/RemoteImg';
 import type { Metadata } from 'next';
 import { notFound, permanentRedirect } from 'next/navigation';
@@ -89,6 +90,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
 
+      {SHOW_POST_DISCLOSURE && <PostDisclosure />}
       <nav aria-label="breadcrumb" className="mb-3 flex items-center gap-1 text-xs text-gray-400">
         <Link href="/coupang" className="hover:text-blue-600">쿠팡최저가</Link>
         <span>›</span>

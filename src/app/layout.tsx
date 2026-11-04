@@ -3,7 +3,7 @@ import './globals.css';
 import { site } from '@/lib/site';
 import { ThemeScript } from '@/components/ThemeScript';
 import { SiteHeader } from '@/components/SiteHeader';
-import { PartnersDisclosure } from '@/components/PartnersDisclosure';
+import { PartnersDisclosure, SHOW_TOP_DISCLOSURE } from '@/components/PartnersDisclosure';
 import { SiteFooter } from '@/components/SiteFooter';
 import { MobileTabBar } from '@/components/MobileTabBar';
 import { Analytics } from '@/components/Analytics';
@@ -79,7 +79,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="flex min-h-full flex-col bg-gray-50 text-gray-900 dark:bg-black dark:text-gray-100">
         <SiteHeader />
-        <PartnersDisclosure />
+        {SHOW_TOP_DISCLOSURE && <PartnersDisclosure />}
         <main className="mx-auto w-full max-w-content flex-1 px-4 pb-24 pt-5 sm:pb-8">{children}</main>
         <SiteFooter />
         <div className="h-[calc(3.75rem+env(safe-area-inset-bottom))] sm:hidden" aria-hidden />

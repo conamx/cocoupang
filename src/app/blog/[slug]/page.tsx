@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { getPost, getPosts } from '@/lib/data';
 import { site } from '@/lib/site';
 import { PostBody } from '@/components/PostBody';
+import { PostDisclosure, SHOW_POST_DISCLOSURE } from '@/components/PartnersDisclosure';
 
 export const revalidate = 3600;
 
@@ -49,6 +50,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
   return (
     <article className="mx-auto max-w-2xl">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }} />
+      {SHOW_POST_DISCLOSURE && <PostDisclosure />}
       <div className="text-xs font-semibold text-blue-600">{p.category}</div>
       <h1 className="mt-1 text-2xl font-bold leading-snug">{p.title}</h1>
       <div className="mt-2 text-xs text-gray-400">{p.date}</div>
