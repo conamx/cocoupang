@@ -51,13 +51,14 @@ export function priceStats(p: Product): PriceStats {
 
   const cur = p.currentPrice;
   const diffPct = avg ? Math.round((Math.abs(cur - avg) / avg) * 100) : 0;
+  // 짧은 라벨 하나로만 판정 (문장 반복 없이)
   let verdict: PriceStats['verdict'];
-  if (count < 2 || highPrice === lowPrice) verdict = { text: '가격 기록을 쌓고 있어요.', tone: 'flat' };
-  else if (cur <= lowPrice) verdict = { text: `최근 ${days}일 중 가장 싸요.`, tone: 'down' };
-  else if (cur >= highPrice) verdict = { text: `최근 ${days}일 중 가장 비싸요.`, tone: 'up' };
-  else if (cur < avg) verdict = { text: `평균보다 ${diffPct}% 싸요.`, tone: 'down' };
-  else if (cur > avg) verdict = { text: `평균보다 ${diffPct}% 비싸요.`, tone: 'up' };
-  else verdict = { text: '평균 가격이에요.', tone: 'flat' };
+  if (count < 2 || highPrice === lowPrice) verdict = { text: '가격 기록 시작', tone: 'flat' };
+  else if (cur <= lowPrice) verdict = { text: '지금 최저가', tone: 'down' };
+  else if (cur >= highPrice) verdict = { text: '최근 최고가', tone: 'up' };
+  else if (cur < avg) verdict = { text: `평균보다 ${diffPct}% 저렴`, tone: 'down' };
+  else if (cur > avg) verdict = { text: `평균보다 ${diffPct}% 비쌈`, tone: 'up' };
+  else verdict = { text: '평균 가격', tone: 'flat' };
 
   return {
     count,
