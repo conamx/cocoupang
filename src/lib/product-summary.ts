@@ -132,6 +132,11 @@ export function productSummary(p: Product): { intro: string; paragraphs: string[
 
   // 상품별 질문이 있으면 가격 질문은 '지금 사도 될까요' 1개만
   const faq: Faq[] = custom.faq.length ? [...custom.faq, priceFaq[0]] : priceFaq;
+  // 쿠팡 이용자가 자주 헷갈리는 부분 — 표시 가격 기준
+  faq.push({
+    q: '와우 회원가나 카드 할인이 반영된 가격인가요?',
+    a: '아니요. 와우 쿠폰과 카드 할인 전 쿠팡 판매가예요. 결제 전 쿠팡 상품 페이지에서 최종 가격을 확인해 주세요.',
+  });
 
   // 검색 결과 설명: 상품 소개가 있으면 첫 문장 + 가격, 없으면 가격 위주
   const intro = custom.intro.replace(/\s+/g, ' ').trim();
