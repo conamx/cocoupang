@@ -7,7 +7,7 @@ name: Sync (쿠팡 가격·핫딜 수집)
 on:
   schedule:
     - cron: '40 22 * * *' # 매일 07:40 KST — 골드박스(07:30 갱신) 직후 쿠팡 가격 수집
-    - cron: '7 * * * *' # 매시 7분 — 커뮤니티 핫딜 + 쿠팡 인기 키워드 검색 20개
+    - cron: '7 * * * *' # 매시 7분 — 커뮤니티 핫딜 + 쿠팡 인기 키워드 검색 45개
   workflow_dispatch:
     inputs:
       job:
@@ -30,7 +30,7 @@ jobs:
       COUPANG_SECRET_KEY: ${{ secrets.COUPANG_SECRET_KEY }}
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
       NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
-      COUPANG_SEARCH_PER_RUN: '20' # 매시간 쿠팡 검색 호출 수
+      COUPANG_SEARCH_PER_RUN: '45' # 매시간 쿠팡 검색 호출 수 (키워드 약 1,080개 → 하루 한 바퀴)
       JOB: ${{ inputs.job || (github.event.schedule == '40 22 * * *' && 'coupang' || 'deals') }}
     steps:
       - name: DB 미설정이면 건너뛰기

@@ -50,9 +50,34 @@ function keywordsForThisHour(perRun: number) {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * 호출 제한 안전장치.
+ * 쿠팡이 한 번이라도 제한(429/403)을 걸면 그 자리에서 수집을 멈추고, 24시간 동안 모든 수집을 쉽니다.
+ * (제한 중에 계속 부르면 더 긴 제한·계정 정지로 이어질 수 있음)
+ */
+const COOLDOWN_HOURS = 24;
+// 쿠팡이 제한으로 거절한 응답 (coupang.ts 가 'coupang 429 …' 형태로 에러를 던짐)
+const isLimitError = (e: unknown) => /^coupang (429|403)\b/.test((e as Error)?.message ?? '');
+async function cooldownUntil(): Promise<Date | null> {
+  await db().execute(sql`CREATE TABLE IF NOT EXISTS sync_state (key text PRIMARY KEY, value text, updated_at timestamptz DEFAULT now())`);
+  const r = (await db().execute(sql`SELECT value FROM sync_state WHERE key = 'coupang_cooldown_until'`)) as unknown as { value: string }[];
+  const until = r[0]?.value ? new Date(r[0].value) : null;
+  return until && until.getTime() > Date.now() ? until : null;
+}
+async function startCooldown(reason: string) {
+  const until = new Date(Date.now() + COOLDOWN_HOURS * 3_600_000).toISOString();
+  await db().execute(sql`
+    INSERT INTO sync_state (key, value, updated_at) VALUES ('coupang_cooldown_until', ${until}::text, now())
+    ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = now()`);
+  console.error(`⛔ 쿠팡 호출 제한 감지 → ${until} 까지 수집 중지: ${reason}`);
+}
+
 export async function syncCoupang(): Promise<CoupangSyncResult> {
   const result: CoupangSyncResult = { collected: 0, upserted: 0, historyAdded: 0, bySource: {}, errors: [] };
   if (!hasCoupangKeys()) return { ...result, skipped: '쿠팡 파트너스 키 미설정' };
+  const cd = await cooldownUntil();
+  if (cd) return { ...result, skipped: `호출 제한 휴식 중 (${cd.toISOString()} 까지)` };
+  let limited = false;
 
   // 카테고리당 베스트 상품 수 (API 최대 100)
   const bestLimit = Number(process.env.COUPANG_BEST_LIMIT ?? 100);
@@ -74,17 +99,25 @@ export async function syncCoupang(): Promise<CoupangSyncResult> {
       add((await fetchBestCategory(c.id, bestLimit)) ?? [], 'best', () => c);
     } catch (e) {
       result.errors.push(`best ${c.label}: ${(e as Error).message}`);
+      if (isLimitError(e)) {
+        limited = true;
+        await startCooldown((e as Error).message);
+        break;
+      }
     }
     await sleep(300);
   }
 
   // 2) 골드박스  (키워드 검색은 syncCoupangSearch 가 매시간 따로 돌림)
   let goldboxOk = false;
-  try {
-    add((await fetchGoldbox()) ?? [], 'goldbox', (it) => matchCategory(it.categoryName));
-    goldboxOk = true;
-  } catch (e) {
-    result.errors.push(`goldbox: ${(e as Error).message}`);
+  if (!limited) {
+    try {
+      add((await fetchGoldbox()) ?? [], 'goldbox', (it) => matchCategory(it.categoryName));
+      goldboxOk = true;
+    } catch (e) {
+      result.errors.push(`goldbox: ${(e as Error).message}`);
+      if (isLimitError(e)) await startCooldown((e as Error).message);
+    }
   }
 
   const all = [...rows.values()];
@@ -125,6 +158,8 @@ export async function syncCoupangSearch(): Promise<CoupangSyncResult & { keyword
   const ks = keywordsForThisHour(perRun);
   const result = { collected: 0, upserted: 0, historyAdded: 0, bySource: {}, errors: [] as string[], keywords: ks.map((k) => k.keyword) };
   if (!hasCoupangKeys()) return { ...result, skipped: '쿠팡 파트너스 키 미설정' };
+  const cd = await cooldownUntil();
+  if (cd) return { ...result, skipped: `호출 제한 휴식 중 (${cd.toISOString()} 까지)` };
 
   const rows = new Map<string, Row>();
   const tags = new Map<string, string[]>(); // 검색어 → 그 검색어로 나온 상품들
@@ -136,8 +171,12 @@ export async function syncCoupangSearch(): Promise<CoupangSyncResult & { keyword
       }
     } catch (e) {
       result.errors.push(`search ${k.keyword}: ${(e as Error).message}`);
+      if (isLimitError(e)) {
+        await startCooldown((e as Error).message);
+        break; // 이미 받은 것만 저장하고 멈춤
+      }
     }
-    await sleep(1000);
+    await sleep(1200);
   }
 
   const all = [...rows.values()];
