@@ -44,7 +44,7 @@ function matchCategory(name?: string): { id: string; label: string } {
 
 /**
  * 검색엔진에 알릴 주소 모으기 → IndexNow 전송.
- *  - 이번에 가격 기록이 2건이 된 상품 (= 오늘부터 검색 노출 대상이 된 상품)
+ *  - 이번에 처음 들어온 상품 (가격 기록이 방금 생긴 1건뿐인 상품)
  *  - 이번에 수집한 검색어 중 상품이 충분히 모인 품목 페이지
  */
 async function notifyIndexNow(ids: string[], keywords: string[] = []): Promise<string> {
@@ -54,7 +54,7 @@ async function notifyIndexNow(ids: string[], keywords: string[] = []): Promise<s
       ? ((await db().execute(sql`
           SELECT p.id, p.name FROM products p
           WHERE p.id IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})
-            AND (SELECT count(*) FROM price_history h WHERE h.product_id = p.id) = 2
+            AND (SELECT count(*) FROM price_history h WHERE h.product_id = p.id) = 1
             AND EXISTS (SELECT 1 FROM price_history h WHERE h.product_id = p.id AND h.observed_at > now() - interval '30 minutes')`)) as unknown as { id: string; name: string }[])
       : [];
     const kwRows = keywords.length

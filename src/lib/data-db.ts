@@ -194,12 +194,8 @@ export const dbData = {
       .groupBy(P.categoryId);
     return Object.fromEntries(rows.map((r) => [r.id, r.n])) as Record<string, number>;
   },
-  // 사이트맵용 — 가격 기록이 2건 이상인 상품만 (갓 들어온 상품은 다음 날부터, 직접 등록 상품은 항상)
   async getProductIndex() {
-    const rows = await db()
-      .select({ id: P.id, name: P.name, updatedAt: P.updatedAt })
-      .from(P)
-      .where(sql`${P.source} = 'manual' OR (SELECT count(*) FROM price_history h WHERE h.product_id = ${P.id}) >= 2`);
+    const rows = await db().select({ id: P.id, name: P.name, updatedAt: P.updatedAt }).from(P);
     return rows.map((r) => ({ id: r.id, name: r.name, updatedAt: r.updatedAt.toISOString() }));
   },
   async getDeals(limit?: number): Promise<Deal[]> {

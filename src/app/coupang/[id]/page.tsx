@@ -57,9 +57,6 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     title,
     description,
     alternates: { canonical: productPath(p) },
-    // 갓 들어온 상품(가격 기록 1건)은 그래프가 없어 검색 노출 제외 → 다음 날 기록이 쌓이면 자동 노출
-    // (직접 등록한 상품은 자동 수집 대상이 아니라 예외)
-    ...(p.history.length < 2 && p.source !== 'manual' ? { robots: { index: false, follow: true } } : {}),
     openGraph: {
       type: 'website',
       title,

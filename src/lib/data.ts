@@ -82,7 +82,7 @@ export async function getActiveCategories(): Promise<{ id: string; label: string
 
 export async function getProductIndex(): Promise<{ id: string; name: string; updatedAt: string }[]> {
   if (useDb()) return (await repo()).getProductIndex();
-  return seedProducts.filter((p) => p.history.length >= 2 || p.source === 'manual').map((p) => ({ id: p.id, name: p.name, updatedAt: p.updatedAt }));
+  return seedProducts.map((p) => ({ id: p.id, name: p.name, updatedAt: p.updatedAt }));
 }
 
 /** 품목(검색어) 페이지 상품 */
