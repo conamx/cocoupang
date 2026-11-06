@@ -186,13 +186,13 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       <div className="grid gap-4 md:grid-cols-[300px_minmax(0,1fr)] md:items-start">
         {/* 사진: 모바일은 작게, PC는 왼쪽 */}
         <div className="hidden aspect-square overflow-hidden rounded-2xl border border-gray-200 bg-white md:block dark:border-gray-800">
-          <RemoteImg src={p.image} alt={p.name} lazy={false} className="h-full w-full object-contain" />
+          <RemoteImg src={p.image} alt={p.name} lazy={false} size={492} className="h-full w-full object-contain" />
         </div>
 
         <div className={card}>
           <div className="flex items-start gap-3">
             <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-gray-50 md:hidden dark:bg-gray-900">
-              <RemoteImg src={p.image} alt="" lazy={false} className="h-full w-full object-contain" />
+              <RemoteImg src={p.image} alt="" lazy={false} size={230} className="h-full w-full object-contain" />
             </div>
             <div className="min-w-0 flex-1">
               <h1 className="line-clamp-3 text-[17px] font-bold leading-snug md:text-xl">{p.name}</h1>

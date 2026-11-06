@@ -20,7 +20,7 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL(site.url),
   title: {
-    default: `쿠팡 최저가 모아보기 · 가격 변동 조회 | ${site.name}`,
+    default: `쿠팡 가격변동 조회 · 역대가 확인 | ${site.name}`,
     template: `%s | ${site.name}`,
   },
   description: site.description,
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
     siteName: site.name,
     locale: 'ko_KR',
     url: site.url,
-    title: `쿠팡 최저가 모아보기 · 가격 변동 조회 | ${site.name}`,
+    title: `쿠팡 가격변동 조회 · 역대가 확인 | ${site.name}`,
     description: site.description,
     images: [{ url: '/og.png', width: 1200, height: 630, alt: site.name }],
   },
@@ -74,6 +74,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8488005090036039"
           crossOrigin="anonymous"
         />
+        {/* 상품 썸네일 서버에 미리 연결 (첫 이미지가 빨리 뜨게) */}
+        <link rel="preconnect" href="https://thumbnail6.coupangcdn.com" />
         <link rel="alternate" type="application/rss+xml" title={site.name} href={`${site.url}/feed.xml`} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }} />
       </head>
