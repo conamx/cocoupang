@@ -53,7 +53,8 @@ export async function syncCoupang(): Promise<CoupangSyncResult> {
   const result: CoupangSyncResult = { collected: 0, upserted: 0, historyAdded: 0, bySource: {}, errors: [] };
   if (!hasCoupangKeys()) return { ...result, skipped: '쿠팡 파트너스 키 미설정' };
 
-  const bestLimit = Number(process.env.COUPANG_BEST_LIMIT ?? 50);
+  // 카테고리당 베스트 상품 수 (API 최대 100)
+  const bestLimit = Number(process.env.COUPANG_BEST_LIMIT ?? 100);
   const searchPerRun = Number(process.env.COUPANG_SEARCH_PER_RUN ?? 10);
   const rows = new Map<string, Row>();
   const add = (items: CoupangItem[], source: Source, cat: (it: CoupangItem) => { id: string; label: string }) => {

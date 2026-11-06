@@ -46,7 +46,7 @@ export default async function HomePage() {
     {
       '@context': 'https://schema.org',
       '@type': 'ItemList',
-      name: '새로 올라온 쿠팡 최저가 상품',
+      name: '지금 인기 쿠팡 상품',
       numberOfItems: latest.length,
       itemListElement: latest.map((p, i) => ({
         '@type': 'ListItem',
@@ -66,8 +66,8 @@ export default async function HomePage() {
     <div className="space-y-8">
       <CategoryChips />
 
-      <ProductSection title="새로 올라온 상품" href="/coupang" products={latest} />
       <ProductSection title="오늘의 골드박스 특가" sub="쿠팡 하루 한정" products={sections.goldbox} ranked />
+      <ProductSection title="지금 인기 상품" href="/coupang" products={latest} />
       <ProductSection title="지금 역대최저가" sub="가격 추적 기준" href="/coupang" products={sections.lowest} />
       <ProductSection title="가격 하락 TOP" sub="어제보다 내려간 상품" products={sections.drops} ranked />
 
