@@ -127,10 +127,12 @@ export async function syncCoupangSearch(): Promise<CoupangSyncResult & { keyword
   if (!hasCoupangKeys()) return { ...result, skipped: '쿠팡 파트너스 키 미설정' };
 
   const rows = new Map<string, Row>();
+  const tags = new Map<string, string[]>(); // 검색어 → 그 검색어로 나온 상품들
   for (const k of ks) {
     try {
       for (const it of (await searchProducts(k.keyword)) ?? []) {
         if (!rows.has(it.productId)) rows.set(it.productId, { ...it, rank: undefined, source: 'search', categoryId: k.categoryId, categoryLabel: labelOf(k.categoryId) });
+        tags.set(k.keyword, [...(tags.get(k.keyword) ?? []), it.productId]);
       }
     } catch (e) {
       result.errors.push(`search ${k.keyword}: ${(e as Error).message}`);
@@ -156,5 +158,23 @@ export async function syncCoupangSearch(): Promise<CoupangSyncResult & { keyword
   );
   result.upserted = r.upserted;
   result.historyAdded = r.historyAdded;
+
+  // 검색어 꼬리표 저장 → 사이트 검색에서 "계란"을 치면 이름에 '계란'이 없는 '신선한 대란'도 찾게
+  try {
+    await ensureSearchTermsColumn();
+    for (const [kw, ids] of tags) {
+      await db().execute(sql`
+        UPDATE products SET search_terms = concat_ws('|', nullif(search_terms, ''), ${kw}::text)
+        WHERE id IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})
+          AND position(${'|' + kw + '|'}::text in '|' || coalesce(search_terms, '') || '|') = 0`);
+    }
+  } catch (e) {
+    result.errors.push(`search_terms: ${(e as Error).message}`);
+  }
   return result;
+}
+
+// products.search_terms 컬럼이 없으면 추가 (한 번만 실제로 실행됨)
+async function ensureSearchTermsColumn() {
+  await db().execute(sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS search_terms text`);
 }
