@@ -21,6 +21,9 @@ const P = schema.products;
 const isPrevDay = sql`(${P.updatedAt} AT TIME ZONE 'Asia/Seoul')::date < (now() AT TIME ZONE 'Asia/Seoul')::date`;
 // 수동 등록은 API가 채운 값(로켓·순위·수집경로)을 덮어쓰지 않음
 const isManual = sql`excluded.source = 'manual'`;
+// 검색 수집은 이미 있는 상품의 수집경로·순위·카테고리를 바꾸지 않음 (가격만 갱신)
+// → 골드박스·베스트 노출이 매시간 검색 결과로 흔들리지 않게
+const keepMeta = sql`excluded.source IN ('manual', 'search')`;
 
 export async function upsertProducts(rows: UpsertRow[]): Promise<{ upserted: number; historyAdded: number }> {
   let upserted = 0;
@@ -56,11 +59,11 @@ export async function upsertProducts(rows: UpsertRow[]): Promise<{ upserted: num
           image: sql`excluded.image`,
           affiliateUrl: sql`COALESCE(excluded.affiliate_url, ${P.affiliateUrl})`,
           isRocket: sql`CASE WHEN ${isManual} THEN ${P.isRocket} ELSE excluded.is_rocket END`,
-          source: sql`CASE WHEN ${isManual} THEN ${P.source} ELSE excluded.source END`,
-          rank: sql`CASE WHEN ${isManual} THEN ${P.rank} ELSE excluded.rank END`,
-          // '기타'로 매칭된 경우 기존 카테고리 유지
-          categoryId: sql`CASE WHEN excluded.category_id = 'etc' THEN ${P.categoryId} ELSE excluded.category_id END`,
-          categoryLabel: sql`CASE WHEN excluded.category_id = 'etc' THEN ${P.categoryLabel} ELSE excluded.category_label END`,
+          source: sql`CASE WHEN ${keepMeta} THEN ${P.source} ELSE excluded.source END`,
+          rank: sql`CASE WHEN ${keepMeta} THEN ${P.rank} ELSE excluded.rank END`,
+          // '기타'로 매칭됐거나 검색 수집이면 기존 카테고리 유지
+          categoryId: sql`CASE WHEN excluded.category_id = 'etc' OR excluded.source = 'search' THEN ${P.categoryId} ELSE excluded.category_id END`,
+          categoryLabel: sql`CASE WHEN excluded.category_id = 'etc' OR excluded.source = 'search' THEN ${P.categoryLabel} ELSE excluded.category_label END`,
           prevPrice: sql`CASE WHEN ${isPrevDay} THEN ${P.currentPrice} ELSE ${P.prevPrice} END`,
           currentPrice: sql`excluded.current_price`,
           lowestPrice: sql`LEAST(${P.lowestPrice}, excluded.current_price)`,
