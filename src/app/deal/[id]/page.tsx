@@ -7,6 +7,7 @@ import { site } from '@/lib/site';
 import { ReactionButtons } from '@/components/ReactionButtons';
 import { BookmarkButton } from '@/components/BookmarkButton';
 import { Comments } from '@/components/Comments';
+import { hasRealThumb } from '@/components/DealThumb';
 
 export const revalidate = 3600;
 
@@ -15,23 +16,33 @@ export async function generateStaticParams() {
   return deals.map((d) => ({ id: d.id }));
 }
 
+// 핫딜 ID 에 한글('뽐뿌-746482')이 들어 있어 주소에서는 인코딩된 채로 들어옴 → 풀어서 조회
+const dealId = (raw: string) => {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+};
+
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
-  const { id } = await params;
+  const id = dealId((await params).id);
   const d = await getDeal(id);
   if (!d) return {};
   return {
     title: d.title,
     description: `${d.source} 핫딜 · ${d.title}${d.price ? ` (${d.price})` : ''}`,
     alternates: { canonical: `/deal/${d.id}` },
-    openGraph: { title: d.title, images: [d.thumb], url: `${site.url}/deal/${d.id}` },
+    openGraph: { title: d.title, images: hasRealThumb(d.thumb) ? [d.thumb] : undefined, url: `${site.url}/deal/${d.id}` },
   };
 }
 
 export default async function DealPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+  const id = dealId((await params).id);
   const d = await getDeal(id);
   if (!d) notFound();
-  const more = (await getDeals()).filter((x) => x.id !== d.id).slice(0, 4);
+  // 다른 핫딜 4개 (전체를 불러오지 않게 개수 제한)
+  const more = (await getDeals(6)).filter((x) => x.id !== d.id).slice(0, 4);
 
   return (
     <article className="mx-auto max-w-2xl">
@@ -42,10 +53,13 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
       </div>
       <h1 className="mt-2 text-xl font-bold leading-snug">{d.title}</h1>
 
-      <div className="relative mt-4 aspect-video overflow-hidden rounded-xl bg-gray-50 dark:bg-gray-950">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img referrerPolicy="no-referrer" src={d.thumb} alt={d.title} className="h-full w-full object-cover" />
-      </div>
+      {/* 이미지가 있는 글만 큰 이미지 (없으면 빈 그림 대신 생략) */}
+      {hasRealThumb(d.thumb) && (
+        <div className="relative mt-4 aspect-video overflow-hidden rounded-xl bg-gray-50 dark:bg-gray-950">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img referrerPolicy="no-referrer" src={d.thumb} alt={d.title} className="h-full w-full object-cover" />
+        </div>
+      )}
 
       {d.price && <div className="mt-4 text-2xl font-extrabold">{d.price}</div>}
 
