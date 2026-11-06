@@ -13,7 +13,7 @@ on:
       job:
         description: '실행할 작업'
         type: choice
-        options: [coupang, search]
+        options: [coupang, search, repair-dry, repair]
         default: coupang
 
 concurrency:
@@ -47,4 +47,4 @@ jobs:
       - if: steps.guard.outputs.skip != '1'
         run: npm ci --no-audit --no-fund
       - if: steps.guard.outputs.skip != '1'
-        run: npm run sync:$JOB
+        run: npx tsx scripts/sync.ts $JOB

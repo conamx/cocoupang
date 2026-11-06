@@ -196,13 +196,24 @@ export async function syncCoupangSearch(): Promise<CoupangSyncResult & { keyword
   const cd = await cooldownUntil();
   if (cd) return { ...result, skipped: `호출 제한 휴식 중 (${cd.toISOString()} 까지)` };
 
+  // 지금 골드박스인 상품 — 쿠팡 검색 API 는 맞는 상품이 없을 때 골드박스 추천을 대신 돌려주는 경우가 있어서 거르는 데 씀
+  const goldbox = new Set(
+    ((await db().execute(sql`SELECT id FROM products WHERE source = 'goldbox'`)) as unknown as { id: string }[]).map((r) => r.id),
+  );
   const rows = new Map<string, Row>();
   const tags = new Map<string, string[]>(); // 검색어 → 그 검색어로 나온 상품들
+  const fallback: string[] = [];
   for (const k of ks) {
     try {
-      for (const it of (await searchProducts(k.keyword)) ?? []) {
-        if (!rows.has(it.productId)) rows.set(it.productId, { ...it, rank: undefined, source: 'search', categoryId: k.categoryId, categoryLabel: labelOf(k.categoryId) });
-        tags.set(k.keyword, [...(tags.get(k.keyword) ?? []), it.productId]);
+      const items = (await searchProducts(k.keyword)) ?? [];
+      // 결과 절반 이상이 골드박스 상품이면 검색 결과가 아니라 추천 목록 → 이 검색어는 건너뜀
+      if (items.length > 0 && items.filter((it) => goldbox.has(it.productId)).length * 2 >= items.length) {
+        fallback.push(k.keyword);
+      } else {
+        for (const it of items) {
+          if (!rows.has(it.productId)) rows.set(it.productId, { ...it, rank: undefined, source: 'search', categoryId: k.categoryId, categoryLabel: labelOf(k.categoryId) });
+          tags.set(k.keyword, [...(tags.get(k.keyword) ?? []), it.productId]);
+        }
       }
     } catch (e) {
       result.errors.push(`search ${k.keyword}: ${(e as Error).message}`);
@@ -213,23 +224,36 @@ export async function syncCoupangSearch(): Promise<CoupangSyncResult & { keyword
     }
     await sleep(1200);
   }
+  if (fallback.length) (result as { fallback?: string[] }).fallback = fallback;
 
-  const all = [...rows.values()];
-  result.collected = all.length;
-  if (all.length === 0) return result;
-  const r = await upsertProducts(
-    all.map((x) => ({
-      productId: x.productId,
-      name: x.name,
-      image: x.image,
-      price: x.price,
-      categoryId: x.categoryId,
-      categoryLabel: x.categoryLabel,
-      affiliateUrl: x.affiliateUrl,
-      isRocket: x.isRocket,
-      source: 'search' as const,
-    })),
+  // 베스트·골드박스·직접 등록으로 들어온 상품은 가격을 건드리지 않음 (꼬리표만 붙임).
+  // 같은 상품이라도 검색 API 가격이 골드박스 특가·다른 옵션 가격과 달라서, 덮어쓰면 그래프가 튀고 최고가가 틀어짐.
+  const ids = [...rows.keys()];
+  const owned = new Set(
+    ids.length
+      ? ((await db().execute(
+          sql`SELECT id FROM products WHERE id IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)}) AND source <> 'search'`,
+        )) as unknown as { id: string }[]).map((r) => r.id)
+      : [],
   );
+  const all = [...rows.values()].filter((x) => !owned.has(x.productId));
+  result.collected = rows.size;
+  if (rows.size === 0) return result;
+  const r = all.length
+    ? await upsertProducts(
+        all.map((x) => ({
+          productId: x.productId,
+          name: x.name,
+          image: x.image,
+          price: x.price,
+          categoryId: x.categoryId,
+          categoryLabel: x.categoryLabel,
+          affiliateUrl: x.affiliateUrl,
+          isRocket: x.isRocket,
+          source: 'search' as const,
+        })),
+      )
+    : { upserted: 0, historyAdded: 0 };
   result.upserted = r.upserted;
   result.historyAdded = r.historyAdded;
 

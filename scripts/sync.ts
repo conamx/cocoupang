@@ -9,6 +9,7 @@
  * 선택: NEXT_PUBLIC_SITE_URL + CRON_SECRET → 수집 후 사이트 캐시를 즉시 갱신
  */
 import { syncCoupang, syncCoupangSearch } from '@/lib/sync/coupang-sync';
+import { repairSearchPrices } from './repair-search-prices';
 
 async function revalidate(scope: 'coupang') {
   const site = process.env.NEXT_PUBLIC_SITE_URL;
@@ -40,8 +41,13 @@ async function main() {
     // 목록은 다음 날 아침 coupang 수집 때 함께 갱신됩니다 (Netlify 사용량 절약).
     const s = await syncCoupangSearch();
     console.log(JSON.stringify(s, null, 2));
+  } else if (job === 'repair-dry' || job === 'repair') {
+    // 1회성 데이터 정리 (repair-dry = 바꿀 개수만 확인)
+    const r = await repairSearchPrices(job === 'repair');
+    console.log(JSON.stringify(r, null, 2));
+    if (job === 'repair') await revalidate('coupang');
   } else {
-    console.error('usage: tsx scripts/sync.ts <coupang|search>');
+    console.error('usage: tsx scripts/sync.ts <coupang|search|repair-dry|repair>');
     process.exitCode = 1;
   }
 }
