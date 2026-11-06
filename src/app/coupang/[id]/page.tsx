@@ -11,9 +11,7 @@ import { won, isoDate, coupangLink } from '@/lib/format';
 import { site } from '@/lib/site';
 import { PriceChart } from '@/components/PriceChart';
 import { ProductCard } from '@/components/ProductCard';
-import { ReactionButtons } from '@/components/ReactionButtons';
 import { BookmarkButton } from '@/components/BookmarkButton';
-import { Comments } from '@/components/Comments';
 import type { Product } from '@/lib/types';
 
 // 가격은 하루 1회 수집 → 수집 직후 /api/revalidate 로 갱신. 평소엔 하루 캐시(크레딧 절약).
@@ -342,11 +340,6 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         </section>
       )}
 
-      <section className="mt-10 flex flex-col items-center gap-2 border-t border-gray-100 pt-6 dark:border-gray-800">
-        <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">이 상품, 어땠나요?</p>
-        <ReactionButtons targetType="product" targetId={p.id} />
-      </section>
-      <Comments targetType="product" targetId={p.id} />
 
       {/* 모바일: 하단 고정 구매 버튼 (하단 탭바 바로 위) */}
       <div className="h-16 sm:hidden" />
