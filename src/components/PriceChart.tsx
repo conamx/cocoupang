@@ -17,7 +17,12 @@ export function PriceChart({
   compact?: boolean;
   mini?: boolean;
 }) {
-  const data = [...history].sort((a, b) => a.observedAt.localeCompare(b.observedAt));
+  // 하루에 여러 번 바뀐 날은 그날 마지막 가격 하나로 (한국 날짜 기준) → 세로로 튀는 선 없이 날짜별로
+  const byDay = new Map<string, PricePoint>();
+  for (const p of [...history].sort((a, b) => a.observedAt.localeCompare(b.observedAt))) {
+    byDay.set(new Date(new Date(p.observedAt).getTime() + 9 * 3600_000).toISOString().slice(0, 10), p);
+  }
+  const data = [...byDay.values()];
   if (data.length < 2) return null;
   const w = mini ? 400 : compact ? 380 : 640;
   const h = mini ? 64 : compact ? 200 : 210;
@@ -52,7 +57,16 @@ export function PriceChart({
   const mn = pts.reduce((a, p) => (p.price <= a.price ? p : a));
   const mx = pts.reduce((a, p) => (p.price >= a.price ? p : a));
   const labelX = (x: number) => Math.min(Math.max(x, 44), w - 44);
-  const ticks = [0, Math.floor((pts.length - 1) / 2), pts.length - 1].filter((v, i, a) => a.indexOf(v) === i);
+  // 날짜 눈금: 처음·끝은 항상, 가운데는 겹치지 않을 때만 (같은 날짜이거나 너무 붙으면 생략)
+  const last = pts.length - 1;
+  const mid = Math.floor(last / 2);
+  const ticks = [0, last];
+  if (
+    mid !== 0 &&
+    mid !== last &&
+    [0, last].every((u) => shortDate(pts[u].observedAt) !== shortDate(pts[mid].observedAt) && Math.abs(pts[u].x - pts[mid].x) > 56)
+  )
+    ticks.splice(1, 0, mid);
 
   return (
     <svg viewBox={`0 0 ${w} ${h}`} className="w-full" role="img" aria-label="날짜별 쿠팡 판매가 그래프">
@@ -79,12 +93,12 @@ export function PriceChart({
           </text>
         ))}
       {!mini &&
-        ticks.map((k, j) => (
+        ticks.map((k) => (
           <text
             key={k}
             x={pts[k].x}
             y={h - 5}
-            textAnchor={j === 0 ? 'start' : j === ticks.length - 1 ? 'end' : 'middle'}
+            textAnchor={k === 0 ? 'start' : k === last ? 'end' : 'middle'}
             fontSize={11}
             className="fill-gray-400"
           >

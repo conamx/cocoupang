@@ -67,6 +67,23 @@ function rankSearch(q: string, terms: string[], found: { row: ProductRow; terms:
     .map(({ f }) => toProduct(f.row));
 }
 
+export type SpecialKind = 'lowest' | 'drops' | 'goldbox';
+/** 홈 섹션과 더보기 페이지가 같은 기준을 쓰도록 한 곳에서 정의 */
+function specialFilter(kind: SpecialKind) {
+  if (kind === 'goldbox') return { where: eq(P.source, 'goldbox'), order: byRank };
+  if (kind === 'lowest')
+    return {
+      // 지금 가격이 기록상 가장 낮고, 가격이 한 번이라도 움직인 상품 → 최고가 대비 많이 내린 순
+      where: and(lte(P.currentPrice, P.lowestPrice), gt(P.highestPrice, P.lowestPrice)),
+      order: [sql`(${P.highestPrice} - ${P.currentPrice})::float / ${P.highestPrice} DESC`],
+    };
+  return {
+    // 어제보다 내린 상품 → 많이 내린 순
+    where: gt(P.prevPrice, P.currentPrice),
+    order: [sql`(${P.prevPrice} - ${P.currentPrice})::float / ${P.prevPrice} DESC`],
+  };
+}
+
 export const dbData = {
   async getProducts(categoryId?: string, limit?: number, offset = 0): Promise<Product[]> {
     const q = db()
@@ -133,22 +150,24 @@ export const dbData = {
       .limit(limit);
     return rows.map((r) => toProduct(r));
   },
+  // 특가 목록 (역대최저가·가격하락·골드박스) — 더보기 페이지용
+  async getSpecialProducts(kind: SpecialKind, limit: number, offset = 0): Promise<{ products: Product[]; total: number }> {
+    const f = specialFilter(kind);
+    const [rows, cnt] = await Promise.all([
+      db().select().from(P).where(f.where).orderBy(...f.order, P.id).limit(limit).offset(offset),
+      db().select({ n: sql<number>`count(*)::int` }).from(P).where(f.where),
+    ]);
+    return { products: rows.map((r) => toProduct(r)), total: Number(cnt[0]?.n ?? 0) };
+  },
   async getProductSections(perSection: number, perCategory: number): Promise<ProductSections> {
     const d = db();
+    const gb = specialFilter('goldbox');
+    const lo = specialFilter('lowest');
+    const dr = specialFilter('drops');
     const [goldbox, lowest, drops, ranked] = await Promise.all([
-      d.select().from(P).where(eq(P.source, 'goldbox')).orderBy(...byRank).limit(perSection),
-      d
-        .select()
-        .from(P)
-        .where(and(lte(P.currentPrice, P.lowestPrice), gt(P.highestPrice, P.lowestPrice)))
-        .orderBy(sql`(${P.highestPrice} - ${P.currentPrice})::float / ${P.highestPrice} DESC`)
-        .limit(perSection),
-      d
-        .select()
-        .from(P)
-        .where(gt(P.prevPrice, P.currentPrice))
-        .orderBy(sql`(${P.prevPrice} - ${P.currentPrice})::float / ${P.prevPrice} DESC`)
-        .limit(perSection),
+      d.select().from(P).where(gb.where).orderBy(...gb.order).limit(perSection),
+      d.select().from(P).where(lo.where).orderBy(...lo.order).limit(perSection),
+      d.select().from(P).where(dr.where).orderBy(...dr.order).limit(perSection),
       // 카테고리별 상위 N개를 한 번에 (서브쿼리라 추가 왕복 없음)
       d
         .select()

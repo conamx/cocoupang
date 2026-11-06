@@ -6,6 +6,7 @@ import { coupangCategories, etcCategory } from '@/lib/site';
 import { CategoryChips } from '@/components/CategoryChips';
 import { ProductCard } from '@/components/ProductCard';
 import { KeywordLinks } from '@/components/KeywordLinks';
+import { Pager } from '@/components/Pager';
 import { PER_PAGE, categoryPath } from '@/lib/category-url';
 
 /** 카테고리 목록 공통 (1쪽: /coupang/category/{cat}, 2쪽부터: /coupang/category/{cat}/{n}) */
@@ -63,46 +64,12 @@ export async function CategoryListing({ id, page }: { id: string; page: number }
           ))}
         </div>
       )}
-      {pages > 1 && <Pager id={c.id} page={page} pages={pages} />}
+      <Pager page={page} pages={pages} href={(n) => categoryPath(c.id, n)} />
       {page === 1 && (
         <div className="mt-10">
           <KeywordLinks title={`${c.label} 품목별 최저가`} categoryId={c.id} limit={40} />
         </div>
       )}
     </div>
-  );
-}
-
-function Pager({ id, page, pages }: { id: string; page: number; pages: number }) {
-  // 현재 쪽 주변 + 처음·끝 (검색엔진이 모든 쪽을 따라갈 수 있게 링크로)
-  const nums = [...new Set([1, page - 2, page - 1, page, page + 1, page + 2, pages])].filter((n) => n >= 1 && n <= pages).sort((a, b) => a - b);
-  const btn = 'flex h-9 min-w-9 items-center justify-center rounded-lg px-2.5 text-sm';
-  return (
-    <nav aria-label="페이지" className="mt-8 flex flex-wrap items-center justify-center gap-1.5">
-      {page > 1 && (
-        <Link href={categoryPath(id, page - 1)} rel="prev" className={`${btn} text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800`}>
-          ‹ 이전
-        </Link>
-      )}
-      {nums.map((n, i) => (
-        <span key={n} className="flex items-center gap-1.5">
-          {i > 0 && n - nums[i - 1] > 1 && <span className="text-gray-300">…</span>}
-          {n === page ? (
-            <span aria-current="page" className={`${btn} bg-blue-600 font-bold text-white`}>
-              {n}
-            </span>
-          ) : (
-            <Link href={categoryPath(id, n)} className={`${btn} text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800`}>
-              {n}
-            </Link>
-          )}
-        </span>
-      ))}
-      {page < pages && (
-        <Link href={categoryPath(id, page + 1)} rel="next" className={`${btn} text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800`}>
-          다음 ›
-        </Link>
-      )}
-    </nav>
   );
 }

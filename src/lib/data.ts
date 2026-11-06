@@ -59,6 +59,20 @@ export async function getProductSections(perSection = 12, perCategory = 6): Prom
   };
 }
 
+/** 특가 목록 (역대최저가·가격하락·골드박스) 더보기 페이지 */
+export type SpecialKind = 'lowest' | 'drops' | 'goldbox';
+export async function getSpecialProducts(kind: SpecialKind, limit: number, offset = 0): Promise<{ products: Product[]; total: number }> {
+  if (useDb()) return (await repo()).getSpecialProducts(kind, limit, offset);
+  const all = [...seedProducts].sort(byRank);
+  const list =
+    kind === 'goldbox'
+      ? all.filter((p) => p.source === 'goldbox')
+      : kind === 'lowest'
+        ? all.filter((p) => p.currentPrice <= p.lowestPrice && p.highestPrice > p.lowestPrice).sort((a, b) => discountRate(b) - discountRate(a))
+        : all.filter((p) => p.prevPrice && p.prevPrice > p.currentPrice).sort((a, b) => dropRate(b) - dropRate(a));
+  return { products: list.slice(offset, offset + limit), total: list.length };
+}
+
 /** 사이트맵용 (id·수정일만) */
 /** 카테고리별 상품 수 (상품 없는 카테고리 숨기기·많은 순 정렬용) */
 export const getCategoryCounts = cache(async (): Promise<Record<string, number>> => {

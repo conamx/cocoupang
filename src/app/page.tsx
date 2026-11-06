@@ -96,10 +96,10 @@ export default async function HomePage() {
         <CategoryChips />
       </div>
 
-      <ProductSection title="오늘의 골드박스 특가" sub="쿠팡 하루 한정" products={sections.goldbox} ranked />
+      <ProductSection title="오늘의 골드박스 특가" sub="쿠팡 하루 한정" href="/coupang/goldbox" products={sections.goldbox} ranked />
       <ProductSection title="지금 인기 상품" href="/coupang" products={latest} />
-      <ProductSection title="지금 역대최저가" sub="가격 추적 기준" href="/coupang" products={sections.lowest} />
-      <ProductSection title="가격 하락 TOP" sub="어제보다 내려간 상품" products={sections.drops} ranked />
+      <ProductSection title="지금 역대최저가" sub="가격 추적 기준" href="/coupang/lowest" products={sections.lowest} />
+      <ProductSection title="가격 하락 TOP" sub="어제보다 내려간 상품" href="/coupang/drops" products={sections.drops} ranked />
 
       {sections.byCategory.map((c) => (
         <ProductSection

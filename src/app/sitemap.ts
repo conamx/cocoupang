@@ -22,6 +22,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/`, changeFrequency: 'hourly', priority: 1 },
     { url: `${base}/coupang`, changeFrequency: 'daily', priority: 0.9 },
     { url: `${base}/coupang/category`, changeFrequency: 'weekly', priority: 0.7 },
+    { url: `${base}/coupang/lowest`, changeFrequency: 'daily', priority: 0.9 },
+    { url: `${base}/coupang/drops`, changeFrequency: 'daily', priority: 0.8 },
+    { url: `${base}/coupang/goldbox`, changeFrequency: 'daily', priority: 0.8 },
     { url: `${base}/blog`, changeFrequency: 'weekly', priority: 0.7 },
   ];
 
