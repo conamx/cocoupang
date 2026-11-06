@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // 빌드 중 DB 를 읽는 페이지가 느릴 때 바로 실패하지 않게 (기본 60초)
+  staticPageGenerationTimeout: 180,
   // 예전 ?cat= 주소 → 정적 카테고리 페이지 (엣지 리다이렉트라 함수 실행 없음)
   async redirects() {
     return [

@@ -22,8 +22,7 @@ export async function POST(req: NextRequest) {
   revalidatePath('/coupang/category/[cat]', 'page');
   revalidatePath('/coupang/category/[cat]/[page]', 'page');
   for (const k of ['lowest', 'drops', 'goldbox']) {
-    revalidatePath(`/coupang/${k}`);
-    revalidatePath(`/coupang/${k}/[page]`, 'page');
+    revalidatePath(`/coupang/${k}/[[...page]]`, 'page');
   }
   revalidatePath('/sitemap.xml');
   return Response.json({ ok: true, scope: scope ?? 'all' });
