@@ -184,7 +184,7 @@ export async function syncCoupang(): Promise<CoupangSyncResult> {
 }
 
 /**
- * 인기 키워드 검색 수집 (매시간, 핫딜 수집과 같은 Actions 실행에서 돌림).
+ * 인기 키워드 검색 수집 (매시간, GitHub Actions).
  * 검색 API는 시간당 호출 제한이 있어 한 번에 COUPANG_SEARCH_PER_RUN 개(기본 10)만.
  * 이미 있는 상품은 가격만 갱신하고 카테고리·순위·골드박스 여부는 그대로 둡니다.
  */
