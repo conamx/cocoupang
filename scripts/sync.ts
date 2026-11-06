@@ -3,15 +3,14 @@
  * Netlify 함수가 아니라 GitHub 러너에서 돌기 때문에 Netlify 크레딧을 쓰지 않습니다.
  *
  *   npm run sync:coupang   # 쿠팡 베스트·골드박스·검색 → 상품 등록 + 가격 갱신 (1일 1회)
- *   npm run sync:deals     # 매시간: 커뮤니티 핫딜 RSS + 쿠팡 인기 키워드 검색 10개
+ *   npm run sync:search    # 매시간: 쿠팡 인기 키워드 검색 (COUPANG_SEARCH_PER_RUN 개)
  *
  * 필요한 환경변수: DATABASE_URL, COUPANG_ACCESS_KEY, COUPANG_SECRET_KEY
  * 선택: NEXT_PUBLIC_SITE_URL + CRON_SECRET → 수집 후 사이트 캐시를 즉시 갱신
  */
 import { syncCoupang, syncCoupangSearch } from '@/lib/sync/coupang-sync';
-import { ingestDeals } from '@/lib/ingest';
 
-async function revalidate(scope: 'coupang' | 'deals') {
+async function revalidate(scope: 'coupang') {
   const site = process.env.NEXT_PUBLIC_SITE_URL;
   const secret = process.env.CRON_SECRET;
   if (!site || !secret) return console.log('↷ revalidate 건너뜀 (NEXT_PUBLIC_SITE_URL/CRON_SECRET 없음)');
@@ -35,17 +34,14 @@ async function main() {
     console.log(JSON.stringify(r, null, 2));
     if (r.upserted > 0) await revalidate('coupang');
     if (r.collected === 0 && r.errors.length) process.exitCode = 1;
-  } else if (job === 'deals') {
-    const r = await ingestDeals();
-    console.log(JSON.stringify(r, null, 2));
-    if (r.inserted > 0) await revalidate('deals');
-    // 같은 실행에서 쿠팡 검색 수집도 (Actions 실행 횟수를 늘리지 않으려고 핫딜 작업에 붙임)
-    // 사이트 전체 캐시 갱신은 하지 않음 — 새 상품 페이지는 첫 방문 때 바로 만들어지고,
+  } else if (job === 'search' || job === 'deals') {
+    // 매시간 쿠팡 검색 수집 ('deals' 는 예전 작업 이름 — 커뮤니티 핫딜 수집은 없앰)
+    // 사이트 캐시 갱신은 하지 않음 — 새 상품 페이지는 첫 방문 때 바로 만들어지고,
     // 목록은 다음 날 아침 coupang 수집 때 함께 갱신됩니다 (Netlify 사용량 절약).
     const s = await syncCoupangSearch();
     console.log(JSON.stringify(s, null, 2));
   } else {
-    console.error('usage: tsx scripts/sync.ts <coupang|deals>');
+    console.error('usage: tsx scripts/sync.ts <coupang|search>');
     process.exitCode = 1;
   }
 }

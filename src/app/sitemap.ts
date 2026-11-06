@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { site } from '@/lib/site';
-import { getProductIndex, getDeals, getPosts, getActiveCategories, getKeywordCounts } from '@/lib/data';
+import { getProductIndex, getPosts, getActiveCategories, getKeywordCounts } from '@/lib/data';
 import { KEYWORD_MIN_PRODUCTS, keywordPath } from '@/lib/keyword-url';
 import { searchKeywords } from '@/lib/sync/keywords';
 import { productPath } from '@/lib/product-url';
@@ -11,9 +11,8 @@ export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = site.url;
-  const [products, deals, posts, activeCats, kwCounts] = await Promise.all([
+  const [products, posts, activeCats, kwCounts] = await Promise.all([
     getProductIndex(),
-    getDeals(5000),
     getPosts(),
     getActiveCategories(),
     getKeywordCounts(),
@@ -23,7 +22,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/`, changeFrequency: 'hourly', priority: 1 },
     { url: `${base}/coupang`, changeFrequency: 'daily', priority: 0.9 },
     { url: `${base}/coupang/category`, changeFrequency: 'weekly', priority: 0.7 },
-    { url: `${base}/deal`, changeFrequency: 'hourly', priority: 0.8 },
     { url: `${base}/blog`, changeFrequency: 'weekly', priority: 0.7 },
   ];
 
@@ -50,12 +48,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: new Date(p.updatedAt),
       changeFrequency: 'daily' as const,
       priority: 0.8,
-    })),
-    ...deals.map((d) => ({
-      url: `${base}/deal/${d.id}`,
-      lastModified: new Date(d.postedAt),
-      changeFrequency: 'daily' as const,
-      priority: 0.6,
     })),
     ...posts.map((p) => ({
       url: `${base}/blog/${p.slug}`,

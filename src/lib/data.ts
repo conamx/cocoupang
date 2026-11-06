@@ -1,7 +1,6 @@
 import { cache } from 'react';
-import type { Deal, DiscountBrand, Post, Product } from '@/lib/types';
+import type { DiscountBrand, Post, Product } from '@/lib/types';
 import { seedProducts } from '@/lib/seed/products';
-import { seedDeals } from '@/lib/seed/deals';
 import { seedPosts } from '@/lib/seed/posts';
 import { seedBrands } from '@/lib/seed/brands';
 import { coupangCategories, etcCategory } from '@/lib/site';
@@ -114,17 +113,6 @@ export async function getRelatedProducts(id: string, limit = 12): Promise<Produc
     .slice(0, limit);
 }
 
-export async function getDeals(limit?: number): Promise<Deal[]> {
-  if (useDb()) return (await repo()).getDeals(limit);
-  const list = [...seedDeals].sort((a, b) => b.postedAt.localeCompare(a.postedAt));
-  return limit ? list.slice(0, limit) : list;
-}
-
-export async function getDeal(id: string): Promise<Deal | null> {
-  if (useDb()) return (await repo()).getDeal(id);
-  return seedDeals.find((d) => d.id === id) ?? null;
-}
-
 // 발행일(오전 9시, 한국시간)이 아직 안 된 예약 글은 사이트·사이트맵·검색에 보이지 않습니다.
 const isPublished = (p: Post) => p.date <= new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
 
@@ -147,16 +135,15 @@ export async function getBrand(slug: string): Promise<DiscountBrand | null> {
   return seedBrands.find((b) => b.slug === slug) ?? null;
 }
 
-export async function search(q: string): Promise<{ products: Product[]; deals: Deal[]; posts: Post[] }> {
+export async function search(q: string): Promise<{ products: Product[]; posts: Post[] }> {
   const needle = q.trim();
-  if (!needle) return { products: [], deals: [], posts: [] };
+  if (!needle) return { products: [], posts: [] };
   if (useDb()) return (await repo()).search(needle);
   const n = needle.toLowerCase();
   const match = (s: string) => s.toLowerCase().includes(n);
   const terms = expandQuery(needle).map((t) => t.toLowerCase());
   return {
     products: seedProducts.filter((p) => terms.some((t) => p.name.toLowerCase().includes(t))),
-    deals: seedDeals.filter((d) => match(d.title)),
     posts: seedPosts.filter((p) => isPublished(p) && (match(p.title) || match(p.summary))),
   };
 }

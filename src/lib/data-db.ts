@@ -1,6 +1,6 @@
 import { and, desc, eq, gt, ilike, lte, ne, or, sql } from 'drizzle-orm';
 import { db, schema } from '@/db/client';
-import type { Deal, Post, Product } from '@/lib/types';
+import type { Post, Product } from '@/lib/types';
 import type { ProductSections } from '@/lib/data';
 import { coupangCategories, etcCategory } from '@/lib/site';
 import { expandQuery } from '@/lib/search-synonyms';
@@ -35,20 +35,6 @@ function toProduct(r: ProductRow, hist: (typeof schema.priceHistory.$inferSelect
 
 const P = schema.products;
 const byRank = [sql`${P.rank} ASC NULLS LAST`, desc(P.updatedAt)];
-
-function toDeal(r: typeof schema.deals.$inferSelect): Deal {
-  return {
-    id: r.id,
-    title: r.title,
-    source: r.source,
-    category: r.category,
-    price: r.price ?? undefined,
-    thumb: r.thumb,
-    url: r.url,
-    likeCount: r.likeCount,
-    postedAt: r.postedAt.toISOString(),
-  };
-}
 
 function toPost(r: typeof schema.posts.$inferSelect): Post {
   return {
@@ -198,15 +184,6 @@ export const dbData = {
     const rows = await db().select({ id: P.id, name: P.name, updatedAt: P.updatedAt }).from(P);
     return rows.map((r) => ({ id: r.id, name: r.name, updatedAt: r.updatedAt.toISOString() }));
   },
-  async getDeals(limit?: number): Promise<Deal[]> {
-    const q = db().select().from(schema.deals).orderBy(desc(schema.deals.postedAt));
-    const rows = limit ? await q.limit(limit) : await q;
-    return rows.map(toDeal);
-  },
-  async getDeal(id: string): Promise<Deal | null> {
-    const rows = await db().select().from(schema.deals).where(eq(schema.deals.id, id)).limit(1);
-    return rows[0] ? toDeal(rows[0]) : null;
-  },
   async getPosts(): Promise<Post[]> {
     const rows = await db()
       .select()
@@ -226,7 +203,7 @@ export const dbData = {
   async search(q: string) {
     const like = `%${q}%`;
     const terms = expandQuery(q); // 검색어 + 동의어 (계란 → 달걀·대란·특란…)
-    const [found, deals, posts] = await Promise.all([
+    const [found, posts] = await Promise.all([
       // 이름(동의어 포함) 또는 수집 검색어 꼬리표로 찾기.
       // search_terms 는 수집 스크립트가 만드는 컬럼이라 schema 에는 두지 않고 직접 읽음.
       db()
@@ -244,7 +221,6 @@ export const dbData = {
             .orderBy(...byRank)
             .limit(300),
         ),
-      db().select().from(schema.deals).where(ilike(schema.deals.title, like)).orderBy(desc(schema.deals.postedAt)).limit(40),
       db()
         .select()
         .from(schema.posts)
@@ -257,7 +233,6 @@ export const dbData = {
     ]);
     return {
       products: rankSearch(q, terms, found).slice(0, 60),
-      deals: deals.map(toDeal),
       posts: posts.map(toPost),
     };
   },

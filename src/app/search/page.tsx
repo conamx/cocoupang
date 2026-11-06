@@ -2,7 +2,6 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { search } from '@/lib/data';
 import { ProductCard } from '@/components/ProductCard';
-import { DealCard } from '@/components/DealCard';
 
 export const metadata: Metadata = {
   title: '검색',
@@ -15,8 +14,8 @@ export default async function SearchPage({
   searchParams: Promise<{ q?: string }>;
 }) {
   const { q = '' } = await searchParams;
-  const { products, deals, posts } = await search(q);
-  const empty = q && products.length + deals.length + posts.length === 0;
+  const { products, posts } = await search(q);
+  const empty = q && products.length + posts.length === 0;
 
   return (
     <div>
@@ -25,7 +24,7 @@ export default async function SearchPage({
           type="search"
           name="q"
           defaultValue={q}
-          placeholder="상품·핫딜·정보 검색"
+          placeholder="상품·정보 검색 (예: 계란, 생수)"
           className="w-full rounded-full border border-gray-300 bg-white px-5 py-3 text-sm outline-none focus:border-blue-500 dark:border-gray-700 dark:bg-gray-900"
         />
       </form>
@@ -39,17 +38,6 @@ export default async function SearchPage({
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
             {products.map((p) => (
               <ProductCard key={p.id} product={p} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {deals.length > 0 && (
-        <section className="mb-8">
-          <h2 className="mb-3 text-base font-bold">핫딜 {deals.length}</h2>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {deals.map((d) => (
-              <DealCard key={d.id} deal={d} />
             ))}
           </div>
         </section>

@@ -10,6 +10,9 @@ const nextConfig = {
         destination: '/coupang/category/:cat',
         permanent: true,
       },
+      // 커뮤니티 핫딜 기능을 없앰 → 예전 핫딜 주소는 홈으로 (검색엔진에 남은 주소가 404 나지 않게)
+      { source: '/deal', destination: '/', permanent: true },
+      { source: '/deal/:path*', destination: '/', permanent: true },
     ];
   },
   images: {

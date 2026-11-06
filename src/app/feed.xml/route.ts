@@ -1,9 +1,9 @@
 import { site } from '@/lib/site';
-import { getDeals, getPosts, getProducts } from '@/lib/data';
+import { getPosts, getProducts } from '@/lib/data';
 import { won } from '@/lib/format';
 import { productPath } from '@/lib/product-url';
 
-// 네이버 서치어드바이저 'RSS 제출'용 — 새 상품·정보글·핫딜을 최신순으로
+// 네이버 서치어드바이저 'RSS 제출'용 — 새 상품·정보글을 최신순으로
 export const revalidate = 3600;
 
 function esc(s: string): string {
@@ -13,7 +13,7 @@ function esc(s: string): string {
 type Item = { title: string; link: string; category: string; date: string; description: string };
 
 export async function GET() {
-  const [products, posts, deals] = await Promise.all([getProducts(undefined, 200), getPosts(), getDeals(50)]);
+  const [products, posts] = await Promise.all([getProducts(undefined, 200), getPosts()]);
   const list: Item[] = [
     ...products.map((p) => ({
       title: `${p.name} 최저가`,
@@ -28,13 +28,6 @@ export async function GET() {
       category: p.category,
       date: p.date,
       description: p.summary,
-    })),
-    ...deals.map((d) => ({
-      title: d.title,
-      link: `${site.url}/deal/${d.id}`,
-      category: d.category,
-      date: d.postedAt,
-      description: d.title,
     })),
   ]
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())

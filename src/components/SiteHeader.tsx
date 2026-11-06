@@ -17,7 +17,7 @@ export function SiteHeader() {
             <input
               type="search"
               name="q"
-              placeholder="상품·핫딜 검색"
+              placeholder="상품 검색 (예: 계란, 생수)"
               className="w-full rounded-full border border-gray-300 bg-gray-50 py-2 pl-4 pr-10 text-sm outline-none focus:border-blue-500 focus:bg-white dark:border-gray-700 dark:bg-gray-900"
             />
             <button type="submit" aria-label="검색" className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-gray-500 hover:text-blue-600">

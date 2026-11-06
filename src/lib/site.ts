@@ -11,7 +11,6 @@ export const site = {
   nav: [
     { href: '/', label: '홈' },
     { href: '/coupang', label: '특가·최저가' },
-    { href: '/deal', label: '핫딜모음' },
     { href: '/blog', label: '정보' },
   ],
 } as const;

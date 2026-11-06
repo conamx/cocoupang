@@ -3,7 +3,7 @@ import { site } from '@/lib/site';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: `${site.name} — 핫딜·최저가`,
+    name: `${site.name} — 쿠팡 가격변동·최저가`,
     short_name: site.name,
     description: site.description,
     start_url: '/',

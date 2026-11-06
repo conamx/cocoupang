@@ -6,7 +6,7 @@ export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: '쇼핑·할인 정보',
-  description: '쿠팡 최저가 활용법, 핫딜 커뮤니티 가이드, 여행 할인코드 등 쇼핑에 도움되는 정보.',
+  description: '쿠팡 최저가 활용법, 가격 변동 보는 법, 여행 할인코드 등 쇼핑에 도움되는 정보.',
   alternates: { canonical: '/blog' },
 };
 

@@ -11,7 +11,7 @@ export default function TermsPage() {
     <article className="prose-body mx-auto max-w-2xl text-[15px] text-gray-800 dark:text-gray-200">
       <h1 className="text-2xl font-bold">이용약관</h1>
       <p>
-        {site.name}(이하 &quot;서비스&quot;)는 국내 커뮤니티에 공유된 핫딜 정보와 공개된 상품 가격 정보를 모아
+        {site.name}(이하 &quot;서비스&quot;)는 쿠팡 파트너스 API로 제공되는 상품 가격 정보를 모아
         제공합니다. 서비스는 상품의 판매 당사자가 아니며, 거래·배송·환불 등은 해당 판매처 정책을 따릅니다.
       </p>
       <h2>제휴 링크</h2>

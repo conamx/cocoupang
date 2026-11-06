@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { getCategoryCounts, getDeals, getProducts, getProductSections } from '@/lib/data';
-import { DealCard } from '@/components/DealCard';
+import { getCategoryCounts, getProducts, getProductSections } from '@/lib/data';
 import { ProductSection } from '@/components/ProductSection';
 import { CategoryChips } from '@/components/CategoryChips';
 import { CategoryGrid } from '@/components/CategoryGrid';
@@ -52,10 +51,9 @@ const homeFaq = [
 ];
 
 export default async function HomePage() {
-  const [sections, deals, latest, counts] = await Promise.all([
+  const [sections, latest, counts] = await Promise.all([
     // 섹션당 10개(PC 5칸×2줄), 카테고리당 5개(PC 1줄, 모바일 4개) — 홈을 가볍게
     getProductSections(10, 5),
-    getDeals(10),
     getProducts(undefined, 10),
     getCategoryCounts(),
   ]);
@@ -114,21 +112,6 @@ export default async function HomePage() {
         />
       ))}
 
-      {deals.length > 0 && (
-        <section>
-          <div className="mb-3 flex items-baseline justify-between">
-            <h2 className="text-lg font-bold">실시간 핫딜</h2>
-            <Link href="/deal" className="text-sm font-semibold text-blue-600 hover:underline">
-              더보기 →
-            </Link>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {deals.map((d) => (
-              <DealCard key={d.id} deal={d} />
-            ))}
-          </div>
-        </section>
-      )}
       <KeywordLinks title="많이 찾는 품목 최저가" limit={40} />
 
       <section>
