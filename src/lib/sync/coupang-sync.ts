@@ -72,6 +72,43 @@ async function notifyIndexNow(ids: string[], keywords: string[] = []): Promise<s
   }
 }
 
+/**
+ * 옵션 고정 (같은 상품번호라도 옵션마다 가격이 다름 — 예: 콜라 190ml×30 / 250ml×30).
+ * 상품마다 처음 추적한 옵션(vendorItemId, 제휴 링크 안에 있음)만 가격을 갱신하고,
+ * 다른 옵션으로 들어온 결과는 골드박스·순위 표시만 반영 → 가격이 옵션 사이를 오가며 그래프가 튀지 않게.
+ */
+const vendorOf = (url?: string) => url?.match(/vendorItemId=(\d+)/)?.[1];
+
+async function splitByVendor<T extends { productId: string; affiliateUrl?: string }>(rows: T[]): Promise<{ price: T[]; other: T[] }> {
+  if (rows.length === 0) return { price: [], other: [] };
+  const existing = new Map(
+    ((await db().execute(
+      sql`SELECT id, vendor_item_id FROM products WHERE id IN (${sql.join(rows.map((r) => sql`${r.productId}`), sql`, `)})`,
+    )) as unknown as { id: string; vendor_item_id: string | null }[]).map((r) => [r.id, r.vendor_item_id]),
+  );
+  const price: T[] = [];
+  const other: T[] = [];
+  for (const r of rows) {
+    const mine = existing.get(r.productId);
+    const theirs = vendorOf(r.affiliateUrl);
+    if (!mine || !theirs || mine === theirs) price.push(r);
+    else other.push(r);
+  }
+  return { price, other };
+}
+
+// 가격을 반영한 상품에 추적 옵션 기록 (처음 한 번만)
+async function rememberVendor(rows: { productId: string; affiliateUrl?: string }[]) {
+  const pairs = rows.map((r) => [r.productId, vendorOf(r.affiliateUrl)] as const).filter((p): p is readonly [string, string] => !!p[1]);
+  for (let i = 0; i < pairs.length; i += 200) {
+    const chunk = pairs.slice(i, i + 200);
+    await db().execute(sql`
+      UPDATE products p SET vendor_item_id = v.vid
+      FROM (VALUES ${sql.join(chunk.map(([id, vid]) => sql`(${id}::text, ${vid}::text)`), sql`, `)}) AS v(id, vid)
+      WHERE p.id = v.id AND p.vendor_item_id IS NULL`);
+  }
+}
+
 // 이번 시간에 수집할 검색 키워드 (시간 기준으로 순환 → 하루 24 × perRun 개)
 function keywordsForThisHour(perRun: number) {
   if (perRun <= 0 || searchKeywords.length === 0) return [];
@@ -120,9 +157,13 @@ export async function syncCoupang(): Promise<CoupangSyncResult> {
     result.bySource[source] = (result.bySource[source] ?? 0) + items.length;
     for (const it of items) {
       const prev = rows.get(it.productId);
-      // 골드박스가 가장 우선(홈 상단 노출), 그다음 베스트 카테고리 정보 유지
       if (prev && source !== 'goldbox') continue;
-      const c = prev && prev.categoryId !== etcCategory.id ? { id: prev.categoryId, label: prev.categoryLabel } : cat(it);
+      if (prev) {
+        // 베스트에도 있는 골드박스 상품: 가격·링크·이름은 베스트 것(오래 추적하는 옵션) 유지, 골드박스 표시·순위만
+        rows.set(it.productId, { ...prev, source: 'goldbox', rank: it.rank });
+        continue;
+      }
+      const c = cat(it);
       rows.set(it.productId, { ...it, source, categoryId: c.id, categoryLabel: c.label });
     }
   };
@@ -162,8 +203,10 @@ export async function syncCoupang(): Promise<CoupangSyncResult> {
   const p = schema.products;
   if (goldboxOk) await db().update(p).set({ source: 'best' }).where(sql`${p.source} = 'goldbox'`);
 
+  // 추적 중인 옵션과 같은 결과만 가격 반영, 다른 옵션은 골드박스·순위만
+  const { price: priced, other } = await splitByVendor(all);
   const r = await upsertProducts(
-    all.map((x) => ({
+    priced.map((x) => ({
       productId: x.productId,
       name: x.name,
       image: x.image,
@@ -176,8 +219,17 @@ export async function syncCoupang(): Promise<CoupangSyncResult> {
       rank: x.rank,
     })),
   );
+  await rememberVendor(priced);
+  for (const x of other) {
+    await db().execute(sql`
+      UPDATE products SET rank = ${x.rank ?? null},
+        source = CASE WHEN source = 'manual' THEN source WHEN ${x.source}::text = 'goldbox' THEN 'goldbox' ELSE source END,
+        updated_at = now()
+      WHERE id = ${x.productId}`);
+  }
   result.upserted = r.upserted;
   result.historyAdded = r.historyAdded;
+  (result as { otherOption?: number }).otherOption = other.length;
   result.indexnow = await notifyIndexNow(all.map((x) => x.productId));
 
   return result;
@@ -226,17 +278,16 @@ export async function syncCoupangSearch(): Promise<CoupangSyncResult & { keyword
   }
   if (fallback.length) (result as { fallback?: string[] }).fallback = fallback;
 
-  // 베스트·골드박스·직접 등록으로 들어온 상품은 가격을 건드리지 않음 (꼬리표만 붙임).
-  // 같은 상품이라도 검색 API 가격이 골드박스 특가·다른 옵션 가격과 달라서, 덮어쓰면 그래프가 튀고 최고가가 틀어짐.
+  // 가격은 '추적 중인 옵션'과 같은 결과만 반영 (다른 옵션이면 꼬리표만). 직접 등록 상품은 가격을 건드리지 않음.
   const ids = [...rows.keys()];
-  const owned = new Set(
+  const manual = new Set(
     ids.length
       ? ((await db().execute(
-          sql`SELECT id FROM products WHERE id IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)}) AND source <> 'search'`,
+          sql`SELECT id FROM products WHERE id IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)}) AND source = 'manual'`,
         )) as unknown as { id: string }[]).map((r) => r.id)
       : [],
   );
-  const all = [...rows.values()].filter((x) => !owned.has(x.productId));
+  const { price: all } = await splitByVendor([...rows.values()].filter((x) => !manual.has(x.productId)));
   result.collected = rows.size;
   if (rows.size === 0) return result;
   const r = all.length
@@ -254,6 +305,7 @@ export async function syncCoupangSearch(): Promise<CoupangSyncResult & { keyword
         })),
       )
     : { upserted: 0, historyAdded: 0 };
+  await rememberVendor(all);
   result.upserted = r.upserted;
   result.historyAdded = r.historyAdded;
 

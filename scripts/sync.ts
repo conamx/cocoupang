@@ -10,6 +10,7 @@
  */
 import { syncCoupang, syncCoupangSearch } from '@/lib/sync/coupang-sync';
 import { repairSearchPrices } from './repair-search-prices';
+import { repairOptions } from './repair-options';
 import { fetchGoldboxRaw, searchProducts } from '@/lib/coupang';
 
 async function revalidate(scope: 'coupang') {
@@ -57,8 +58,9 @@ async function main() {
       await new Promise((res) => setTimeout(res, 1200));
     }
   } else if (job === 'repair-dry' || job === 'repair') {
-    // 1회성 데이터 정리 (repair-dry = 바꿀 개수만 확인)
-    const r = await repairSearchPrices(job === 'repair');
+    // 1회성 데이터 정리 (repair-dry = 바꿀 개수만 확인) — 옵션 섞임 정리 (repair-search-prices 는 이미 적용됨)
+    void repairSearchPrices;
+    const r = await repairOptions(job === 'repair');
     console.log(JSON.stringify(r, null, 2));
     if (job === 'repair') await revalidate('coupang');
   } else {
