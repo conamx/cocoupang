@@ -25,10 +25,10 @@ async function repo() {
 const byRank = (a: Product, b: Product) =>
   (a.rank ?? 9999) - (b.rank ?? 9999) || b.updatedAt.localeCompare(a.updatedAt);
 
-export async function getProducts(categoryId?: string, limit?: number): Promise<Product[]> {
-  if (useDb()) return (await repo()).getProducts(categoryId, limit);
+export async function getProducts(categoryId?: string, limit?: number, offset = 0): Promise<Product[]> {
+  if (useDb()) return (await repo()).getProducts(categoryId, limit, offset);
   const list = categoryId ? seedProducts.filter((p) => p.categoryId === categoryId) : seedProducts;
-  const sorted = [...list].sort(byRank);
+  const sorted = [...list].sort(byRank).slice(offset);
   return limit ? sorted.slice(0, limit) : sorted;
 }
 
@@ -84,10 +84,11 @@ export async function getProductIndex(): Promise<{ id: string; name: string; upd
   return seedProducts.map((p) => ({ id: p.id, name: p.name, updatedAt: p.updatedAt }));
 }
 
-export async function getProduct(id: string): Promise<Product | null> {
+// cache: 같은 요청 안에서 메타데이터·본문이 같은 상품을 두 번 조회하지 않게
+export const getProduct = cache(async (id: string): Promise<Product | null> => {
   if (useDb()) return (await repo()).getProduct(id);
   return seedProducts.find((p) => p.id === id) ?? null;
-}
+});
 
 // 같은 카테고리에서 가격대가 가까운 순 (상세 페이지 하단 관련상품)
 export async function getRelatedProducts(id: string, limit = 12): Promise<Product[]> {

@@ -75,11 +75,12 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const param = (await params).id;
   const id = productIdFromParam(param);
-  const p = id ? await getProduct(id) : undefined;
+  // 상품·관련상품을 동시에 조회 (순서대로 기다리지 않게)
+  const [p, related] = id ? await Promise.all([getProduct(id), getRelatedProducts(id, 10)]) : [undefined, []];
   if (!p) notFound();
   // 예전 주소(/coupang/{ID})나 상품명이 바뀐 주소 → 현재 주소로 영구 이동 (검색엔진도 새 주소로 갱신)
-  if (decodedParam(param) !== productSlug(p)) permanentRedirect(productPath(p));
-  const related = await getRelatedProducts(p.id, 10);
+  // Location 헤더에는 한글을 그대로 못 넣으므로 인코딩 (안 하면 500 오류)
+  if (decodedParam(param) !== productSlug(p)) permanentRedirect(encodeURI(productPath(p)));
   const affiliate = coupangLink(p);
   const summary = productSummary(p);
   const s = priceStats(p);

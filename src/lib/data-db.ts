@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, ilike, inArray, lte, ne, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, ilike, lte, ne, or, sql } from 'drizzle-orm';
 import { db, schema } from '@/db/client';
 import type { Deal, Post, Product } from '@/lib/types';
 import type { ProductSections } from '@/lib/data';
@@ -8,16 +8,6 @@ import { coupangCategories, etcCategory } from '@/lib/site';
 // data.ts 가 플래그에 따라 이 모듈 또는 시드를 선택합니다.
 
 type ProductRow = typeof schema.products.$inferSelect;
-
-// 상세 페이지에서만 가격 이력을 붙입니다 (목록은 이력 없이 1쿼리).
-async function withHistory(r: ProductRow): Promise<Product> {
-  const hist = await db()
-    .select()
-    .from(schema.priceHistory)
-    .where(eq(schema.priceHistory.productId, r.id))
-    .orderBy(schema.priceHistory.observedAt);
-  return toProduct(r, hist);
-}
 
 function toProduct(r: ProductRow, hist: (typeof schema.priceHistory.$inferSelect)[] = []): Product {
   return {
@@ -71,31 +61,35 @@ function toPost(r: typeof schema.posts.$inferSelect): Post {
 }
 
 export const dbData = {
-  async getProducts(categoryId?: string, limit?: number): Promise<Product[]> {
+  async getProducts(categoryId?: string, limit?: number, offset = 0): Promise<Product[]> {
     const q = db()
       .select()
       .from(P)
       .where(categoryId ? eq(P.categoryId, categoryId) : undefined)
-      .orderBy(...byRank);
-    const rows = limit ? await q.limit(limit) : await q;
+      .orderBy(...byRank, P.id);
+    const rows = limit ? await q.limit(limit).offset(offset) : await q.offset(offset);
     return rows.map((r) => toProduct(r));
   },
+  // 상세 페이지: 상품과 가격 이력을 동시에 조회 (DB 왕복 1번)
   async getProduct(id: string): Promise<Product | null> {
-    const rows = await db().select().from(P).where(eq(P.id, id)).limit(1);
-    return rows[0] ? withHistory(rows[0]) : null;
+    const [rows, hist] = await Promise.all([
+      db().select().from(P).where(eq(P.id, id)).limit(1),
+      db()
+        .select()
+        .from(schema.priceHistory)
+        .where(eq(schema.priceHistory.productId, id))
+        .orderBy(schema.priceHistory.observedAt),
+    ]);
+    return rows[0] ? toProduct(rows[0], hist) : null;
   },
+  // 같은 카테고리에서 가격대가 가까운 순 — 기준 상품을 서브쿼리로 읽어 한 번에
   async getRelatedProducts(id: string, limit = 12): Promise<Product[]> {
-    const cur = await db()
-      .select({ categoryId: P.categoryId, price: P.currentPrice })
-      .from(P)
-      .where(eq(P.id, id))
-      .limit(1);
-    if (!cur[0]) return [];
+    const cur = sql`(SELECT category_id, current_price FROM products WHERE id = ${id})`;
     const rows = await db()
       .select()
       .from(P)
-      .where(and(eq(P.categoryId, cur[0].categoryId), ne(P.id, id)))
-      .orderBy(sql`abs(${P.currentPrice} - ${cur[0].price})`, ...byRank)
+      .where(and(sql`${P.categoryId} = (SELECT category_id FROM ${cur} c)`, ne(P.id, id)))
+      .orderBy(sql`abs(${P.currentPrice} - (SELECT current_price FROM ${cur} c))`, ...byRank)
       .limit(limit);
     return rows.map((r) => toProduct(r));
   },
@@ -115,18 +109,21 @@ export const dbData = {
         .where(gt(P.prevPrice, P.currentPrice))
         .orderBy(sql`(${P.prevPrice} - ${P.currentPrice})::float / ${P.prevPrice} DESC`)
         .limit(perSection),
-      // 카테고리별 상위 N개를 한 번에
-      d.execute(sql`
-        SELECT id FROM (
-          SELECT id, row_number() OVER (PARTITION BY category_id ORDER BY rank ASC NULLS LAST, updated_at DESC) AS rn
-          FROM products
-        ) t WHERE rn <= ${perCategory}
-      `),
+      // 카테고리별 상위 N개를 한 번에 (서브쿼리라 추가 왕복 없음)
+      d
+        .select()
+        .from(P)
+        .where(
+          sql`${P.id} IN (
+            SELECT id FROM (
+              SELECT id, row_number() OVER (PARTITION BY category_id ORDER BY rank ASC NULLS LAST, updated_at DESC) AS rn
+              FROM products
+            ) t WHERE rn <= ${perCategory}
+          )`,
+        )
+        .orderBy(...byRank),
     ]);
-    const ids = (ranked as unknown as { id: string }[]).map((r) => r.id);
-    const top = ids.length
-      ? (await d.select().from(P).where(inArray(P.id, ids)).orderBy(...byRank)).map((r) => toProduct(r))
-      : [];
+    const top = ranked.map((r) => toProduct(r));
     return {
       goldbox: goldbox.map((r) => toProduct(r)),
       lowest: lowest.map((r) => toProduct(r)),

@@ -2,6 +2,7 @@ import type { MetadataRoute } from 'next';
 import { site } from '@/lib/site';
 import { getProductIndex, getDeals, getPosts, getActiveCategories } from '@/lib/data';
 import { productPath } from '@/lib/product-url';
+import { PER_PAGE, categoryPath } from '@/lib/category-url';
 
 // 예약 발행한 정보글이 발행일에 맞춰 들어가도록 1시간마다 새로 만든다
 export const revalidate = 3600;
@@ -25,11 +26,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   return [
     ...staticUrls,
-    ...activeCats.map((c) => ({
-      url: `${base}/coupang/category/${c.id}`,
-      changeFrequency: 'daily' as const,
-      priority: 0.7,
-    })),
+    // 카테고리 1쪽 + 2쪽 이후 (상품이 많아져도 모든 상품까지 링크가 닿게)
+    ...activeCats.flatMap((c) =>
+      Array.from({ length: Math.max(1, Math.ceil(c.count / PER_PAGE)) }, (_, i) => ({
+        url: `${base}${categoryPath(c.id, i + 1)}`,
+        changeFrequency: 'daily' as const,
+        priority: i === 0 ? 0.7 : 0.4,
+      })),
+    ),
     ...products.map((p) => ({
       url: `${base}${productPath(p)}`,
       lastModified: new Date(p.updatedAt),
