@@ -28,6 +28,8 @@ ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "is_rocket" boolean DEFAULT fals
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "source" text DEFAULT 'manual' NOT NULL;
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "rank" integer;
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "prev_price" integer;
+-- 쿠팡 검색 수집 때 붙는 검색어 꼬리표 (사이트 검색용, 수집 스크립트도 자동 추가)
+ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "search_terms" text;
 CREATE INDEX IF NOT EXISTS "products_category_idx" ON "products" ("category_id");
 CREATE INDEX IF NOT EXISTS "products_source_idx" ON "products" ("source", "updated_at");
 

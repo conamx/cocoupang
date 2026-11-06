@@ -6,6 +6,7 @@ import { seedPosts } from '@/lib/seed/posts';
 import { seedBrands } from '@/lib/seed/brands';
 import { coupangCategories, etcCategory } from '@/lib/site';
 import { discountRate, dropRate } from '@/lib/format';
+import { expandQuery } from '@/lib/search-synonyms';
 
 /**
  * 데이터 접근 계층(Repository).
@@ -140,8 +141,9 @@ export async function search(q: string): Promise<{ products: Product[]; deals: D
   if (useDb()) return (await repo()).search(needle);
   const n = needle.toLowerCase();
   const match = (s: string) => s.toLowerCase().includes(n);
+  const terms = expandQuery(needle).map((t) => t.toLowerCase());
   return {
-    products: seedProducts.filter((p) => match(p.name)),
+    products: seedProducts.filter((p) => terms.some((t) => p.name.toLowerCase().includes(t))),
     deals: seedDeals.filter((d) => match(d.title)),
     posts: seedPosts.filter((p) => isPublished(p) && (match(p.title) || match(p.summary))),
   };

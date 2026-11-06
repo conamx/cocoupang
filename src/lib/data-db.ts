@@ -3,6 +3,7 @@ import { db, schema } from '@/db/client';
 import type { Deal, Post, Product } from '@/lib/types';
 import type { ProductSections } from '@/lib/data';
 import { coupangCategories, etcCategory } from '@/lib/site';
+import { expandQuery } from '@/lib/search-synonyms';
 
 // DATA_SOURCE=db 일 때 사용하는 Postgres 구현.
 // data.ts 가 플래그에 따라 이 모듈 또는 시드를 선택합니다.
@@ -58,6 +59,26 @@ function toPost(r: typeof schema.posts.$inferSelect): Post {
     body: r.body,
     date: r.date.toISOString().slice(0, 10),
   };
+}
+
+/**
+ * 검색 결과 순서: 사람이 찾는 '그 물건'을 먼저.
+ *  1) 쿠팡에서 그 검색어로 수집된 상품(꼬리표 정확히 일치)이나 동의어로 걸린 상품
+ *  2) 1)과 같은 카테고리 상품 (예: 계란 → 식품)
+ *  3) 이름에 글자만 들어간 다른 상품 (예: 계란찜기)
+ * 같은 단계 안에서는 인기순(이미 정렬된 순서) 유지.
+ */
+function rankSearch(q: string, terms: string[], found: { row: ProductRow; terms: string | null }[]): Product[] {
+  const n = q.trim().toLowerCase();
+  const syns = terms.slice(1).map((t) => t.toLowerCase());
+  const isStrong = (f: (typeof found)[number]) =>
+    (f.terms ?? '').toLowerCase().split('|').includes(n) || syns.some((t) => f.row.name.toLowerCase().includes(t));
+  const strongCats = new Set(found.filter(isStrong).map((f) => f.row.categoryId));
+  const score = (f: (typeof found)[number]) => (isStrong(f) ? 0 : strongCats.has(f.row.categoryId) ? 1 : 2);
+  return found
+    .map((f, i) => ({ f, i, s: score(f) }))
+    .sort((a, b) => a.s - b.s || a.i - b.i)
+    .map(({ f }) => toProduct(f.row));
 }
 
 export const dbData = {
@@ -171,9 +192,26 @@ export const dbData = {
   },
   async search(q: string) {
     const like = `%${q}%`;
-    const [products, deals, posts] = await Promise.all([
-      db().select().from(P).where(ilike(P.name, like)).orderBy(...byRank).limit(60),
-      db().select().from(schema.deals).where(ilike(schema.deals.title, like)),
+    const terms = expandQuery(q); // 검색어 + 동의어 (계란 → 달걀·대란·특란…)
+    const [found, deals, posts] = await Promise.all([
+      // 이름(동의어 포함) 또는 수집 검색어 꼬리표로 찾기.
+      // search_terms 는 수집 스크립트가 만드는 컬럼이라 schema 에는 두지 않고 직접 읽음.
+      db()
+        .select({ row: P, terms: sql<string | null>`search_terms` })
+        .from(P)
+        .where(or(...terms.map((t) => ilike(P.name, `%${t}%`)), sql`search_terms ILIKE ${like}`))
+        .orderBy(...byRank)
+        .limit(300)
+        // 컬럼이 아직 없으면(수집 스크립트가 아직 안 돌았으면) 이름으로만 검색
+        .catch(() =>
+          db()
+            .select({ row: P, terms: sql<string | null>`null` })
+            .from(P)
+            .where(or(...terms.map((t) => ilike(P.name, `%${t}%`))))
+            .orderBy(...byRank)
+            .limit(300),
+        ),
+      db().select().from(schema.deals).where(ilike(schema.deals.title, like)).orderBy(desc(schema.deals.postedAt)).limit(40),
       db()
         .select()
         .from(schema.posts)
@@ -185,7 +223,7 @@ export const dbData = {
         ),
     ]);
     return {
-      products: products.map((r) => toProduct(r)),
+      products: rankSearch(q, terms, found).slice(0, 60),
       deals: deals.map(toDeal),
       posts: posts.map(toPost),
     };
