@@ -94,14 +94,47 @@ export const dbData = {
   // 상세 페이지: 상품과 가격 이력을 동시에 조회 (DB 왕복 1번)
   async getProduct(id: string): Promise<Product | null> {
     const [rows, hist] = await Promise.all([
-      db().select().from(P).where(eq(P.id, id)).limit(1),
+      db()
+        .select({ row: P, terms: sql<string | null>`search_terms` })
+        .from(P)
+        .where(eq(P.id, id))
+        .limit(1)
+        // search_terms 컬럼이 아직 없으면 꼬리표 없이
+        .catch(() => db().select({ row: P, terms: sql<string | null>`null` }).from(P).where(eq(P.id, id)).limit(1)),
       db()
         .select()
         .from(schema.priceHistory)
         .where(eq(schema.priceHistory.productId, id))
         .orderBy(schema.priceHistory.observedAt),
     ]);
-    return rows[0] ? toProduct(rows[0], hist) : null;
+    if (!rows[0]) return null;
+    const p = toProduct(rows[0].row, hist);
+    p.searchTerms = (rows[0].terms ?? '').split('|').filter(Boolean);
+    return p;
+  },
+  // 품목(검색어) 페이지: 그 검색어로 수집된 상품. 지금 역대 최저가인 것 → 인기순 → 최근 갱신순
+  async getKeywordProducts(keyword: string, limit = 40): Promise<Product[]> {
+    const tag = `|${keyword}|`;
+    const rows = await db()
+      .select()
+      .from(P)
+      .where(sql`position(${tag}::text in '|' || coalesce(search_terms, '') || '|') > 0`)
+      .orderBy(
+        sql`(${P.currentPrice} <= ${P.lowestPrice} AND ${P.highestPrice} > ${P.lowestPrice}) DESC`,
+        ...byRank,
+      )
+      .limit(limit)
+      .catch(() => []);
+    return rows.map((r) => toProduct(r));
+  },
+  // 검색어별 상품 수 (사이트맵·링크에서 빈 페이지 거르기용)
+  async getKeywordCounts(): Promise<Record<string, number>> {
+    const rows = (await db()
+      .execute(
+        sql`SELECT t AS keyword, count(*)::int AS n FROM products, unnest(string_to_array(search_terms, '|')) AS t WHERE search_terms IS NOT NULL GROUP BY t`,
+      )
+      .catch(() => [])) as unknown as { keyword: string; n: number }[];
+    return Object.fromEntries(rows.map((r) => [r.keyword, r.n]));
   },
   // 같은 카테고리에서 가격대가 가까운 순 — 기준 상품을 서브쿼리로 읽어 한 번에
   async getRelatedProducts(id: string, limit = 12): Promise<Product[]> {
@@ -161,8 +194,12 @@ export const dbData = {
       .groupBy(P.categoryId);
     return Object.fromEntries(rows.map((r) => [r.id, r.n])) as Record<string, number>;
   },
+  // 사이트맵용 — 가격 기록이 2건 이상인 상품만 (갓 들어온 상품은 다음 날부터, 직접 등록 상품은 항상)
   async getProductIndex() {
-    const rows = await db().select({ id: P.id, name: P.name, updatedAt: P.updatedAt }).from(P);
+    const rows = await db()
+      .select({ id: P.id, name: P.name, updatedAt: P.updatedAt })
+      .from(P)
+      .where(sql`${P.source} = 'manual' OR (SELECT count(*) FROM price_history h WHERE h.product_id = ${P.id}) >= 2`);
     return rows.map((r) => ({ id: r.id, name: r.name, updatedAt: r.updatedAt.toISOString() }));
   },
   async getDeals(limit?: number): Promise<Deal[]> {

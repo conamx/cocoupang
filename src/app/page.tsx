@@ -5,6 +5,7 @@ import { DealCard } from '@/components/DealCard';
 import { ProductSection } from '@/components/ProductSection';
 import { CategoryChips } from '@/components/CategoryChips';
 import { CategoryGrid } from '@/components/CategoryGrid';
+import { KeywordLinks } from '@/components/KeywordLinks';
 import { site } from '@/lib/site';
 import { productPath } from '@/lib/product-url';
 
@@ -52,7 +53,8 @@ const homeFaq = [
 
 export default async function HomePage() {
   const [sections, deals, latest, counts] = await Promise.all([
-    getProductSections(),
+    // 섹션당 10개(PC 5칸×2줄), 카테고리당 5개(PC 1줄, 모바일 4개) — 홈을 가볍게
+    getProductSections(10, 5),
     getDeals(10),
     getProducts(undefined, 10),
     getCategoryCounts(),
@@ -108,6 +110,7 @@ export default async function HomePage() {
           href={`/coupang/category/${c.id}`}
           products={c.products}
           ranked
+          mobileMax={4}
         />
       ))}
 
@@ -126,6 +129,8 @@ export default async function HomePage() {
           </div>
         </section>
       )}
+      <KeywordLinks title="많이 찾는 품목 최저가" limit={40} />
+
       <section>
         <h2 className="mb-3 text-lg font-bold">카테고리별 최저가 찾기</h2>
         <CategoryGrid />

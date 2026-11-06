@@ -4,6 +4,9 @@ import { fetchBestCategory, fetchGoldbox, hasCoupangKeys, searchProducts, type C
 import { coupangCategories, etcCategory } from '@/lib/site';
 import { searchKeywords } from './keywords';
 import { upsertProducts } from './upsert';
+import { submitIndexNow } from './indexnow';
+import { productPath } from '@/lib/product-url';
+import { keywordPath, KEYWORD_MIN_PRODUCTS } from '@/lib/keyword-url';
 
 /**
  * 쿠팡 상품 수집 + 가격 갱신.
@@ -19,6 +22,7 @@ type Source = 'best' | 'goldbox' | 'search';
 type Row = CoupangItem & { categoryId: string; categoryLabel: string; source: Source };
 
 export type CoupangSyncResult = {
+  indexnow?: string;
   collected: number;
   upserted: number;
   historyAdded: number;
@@ -36,6 +40,36 @@ function matchCategory(name?: string): { id: string; label: string } {
     if (hit) return hit;
   }
   return etcCategory;
+}
+
+/**
+ * 검색엔진에 알릴 주소 모으기 → IndexNow 전송.
+ *  - 이번에 가격 기록이 2건이 된 상품 (= 오늘부터 검색 노출 대상이 된 상품)
+ *  - 이번에 수집한 검색어 중 상품이 충분히 모인 품목 페이지
+ */
+async function notifyIndexNow(ids: string[], keywords: string[] = []): Promise<string> {
+  if (ids.length === 0 && keywords.length === 0) return 'skip';
+  try {
+    const fresh = ids.length
+      ? ((await db().execute(sql`
+          SELECT p.id, p.name FROM products p
+          WHERE p.id IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})
+            AND (SELECT count(*) FROM price_history h WHERE h.product_id = p.id) = 2
+            AND EXISTS (SELECT 1 FROM price_history h WHERE h.product_id = p.id AND h.observed_at > now() - interval '30 minutes')`)) as unknown as { id: string; name: string }[])
+      : [];
+    const kwRows = keywords.length
+      ? ((await db().execute(sql`
+          SELECT t AS keyword, count(*)::int AS n FROM products, unnest(string_to_array(search_terms, '|')) AS t
+          WHERE t IN (${sql.join(keywords.map((k) => sql`${k}`), sql`, `)}) GROUP BY t`)) as unknown as { keyword: string; n: number }[])
+      : [];
+    const paths = [
+      ...kwRows.filter((r) => r.n >= KEYWORD_MIN_PRODUCTS).map((r) => keywordPath(r.keyword)),
+      ...fresh.map((r) => productPath(r)),
+    ];
+    return await submitIndexNow(paths);
+  } catch (e) {
+    return `실패: ${(e as Error).message}`;
+  }
 }
 
 // 이번 시간에 수집할 검색 키워드 (시간 기준으로 순환 → 하루 24 × perRun 개)
@@ -144,6 +178,7 @@ export async function syncCoupang(): Promise<CoupangSyncResult> {
   );
   result.upserted = r.upserted;
   result.historyAdded = r.historyAdded;
+  result.indexnow = await notifyIndexNow(all.map((x) => x.productId));
 
   return result;
 }
@@ -210,6 +245,7 @@ export async function syncCoupangSearch(): Promise<CoupangSyncResult & { keyword
   } catch (e) {
     result.errors.push(`search_terms: ${(e as Error).message}`);
   }
+  (result as CoupangSyncResult).indexnow = await notifyIndexNow(all.map((x) => x.productId), [...tags.keys()]);
   return result;
 }
 

@@ -82,8 +82,20 @@ export async function getActiveCategories(): Promise<{ id: string; label: string
 
 export async function getProductIndex(): Promise<{ id: string; name: string; updatedAt: string }[]> {
   if (useDb()) return (await repo()).getProductIndex();
-  return seedProducts.map((p) => ({ id: p.id, name: p.name, updatedAt: p.updatedAt }));
+  return seedProducts.filter((p) => p.history.length >= 2 || p.source === 'manual').map((p) => ({ id: p.id, name: p.name, updatedAt: p.updatedAt }));
 }
+
+/** 품목(검색어) 페이지 상품 */
+export const getKeywordProducts = cache(async (keyword: string, limit = 40): Promise<Product[]> => {
+  if (useDb()) return (await repo()).getKeywordProducts(keyword, limit);
+  return seedProducts.filter((p) => p.name.includes(keyword)).slice(0, limit);
+});
+
+/** 검색어별 수집 상품 수 */
+export const getKeywordCounts = cache(async (): Promise<Record<string, number>> => {
+  if (useDb()) return (await repo()).getKeywordCounts();
+  return {};
+});
 
 // cache: 같은 요청 안에서 메타데이터·본문이 같은 상품을 두 번 조회하지 않게
 export const getProduct = cache(async (id: string): Promise<Product | null> => {

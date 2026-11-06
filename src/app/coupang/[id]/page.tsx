@@ -6,6 +6,7 @@ import type { Metadata } from 'next';
 import { notFound, permanentRedirect } from 'next/navigation';
 import { decodedParam, productIdFromParam, productPath, productSlug } from '@/lib/product-url';
 import { getProduct, getRelatedProducts } from '@/lib/data';
+import { findKeyword, keywordPath, keywordSlug } from '@/lib/keyword-url';
 import { won, isoDate, coupangLink } from '@/lib/format';
 import { site } from '@/lib/site';
 import { PriceChart } from '@/components/PriceChart';
@@ -16,7 +17,8 @@ import { Comments } from '@/components/Comments';
 import type { Product } from '@/lib/types';
 
 // 가격은 하루 1회 수집 → 수집 직후 /api/revalidate 로 갱신. 평소엔 하루 캐시(크레딧 절약).
-export const revalidate = 86400;
+// 12시간마다 갱신 (방문 시 저장된 페이지를 바로 보여주고 뒤에서 새로 만듦)
+export const revalidate = 43200;
 
 // 빌드 때 미리 만들지 않고 첫 방문 때 만들어 캐시 (빌드 중 DB 호출이 몰려 시간 초과 나는 것 방지)
 export const dynamicParams = true;
@@ -55,6 +57,9 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     title,
     description,
     alternates: { canonical: productPath(p) },
+    // 갓 들어온 상품(가격 기록 1건)은 그래프가 없어 검색 노출 제외 → 다음 날 기록이 쌓이면 자동 노출
+    // (직접 등록한 상품은 자동 수집 대상이 아니라 예외)
+    ...(p.history.length < 2 && p.source !== 'manual' ? { robots: { index: false, follow: true } } : {}),
     openGraph: {
       type: 'website',
       title,
@@ -86,6 +91,8 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   const s = priceStats(p);
   const url = `${site.url}${productPath(p)}`;
   const hasRange = s.count >= 2 && s.high.price > s.low.price;
+  // 이 상품이 수집된 검색어 중 페이지가 있는 것 (품목별 최저가 모음으로 연결)
+  const terms = (p.searchTerms ?? []).filter((w) => findKeyword(keywordSlug(w))).slice(0, 6);
 
   const validUntil = new Date(new Date(s.checkedAt).getTime() + 2 * 86_400_000).toISOString().slice(0, 10);
   const jsonLd = [
@@ -304,6 +311,23 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           ))}
         </div>
       </section>
+
+      {terms.length > 0 && (
+        <section className="mt-8">
+          <h2 className="mb-2 text-base font-bold">비슷한 상품 가격 비교</h2>
+          <div className="flex flex-wrap gap-1.5">
+            {terms.map((w) => (
+              <Link
+                key={w}
+                href={keywordPath(w)}
+                className="rounded-full bg-white px-3 py-1.5 text-[13px] text-gray-700 ring-1 ring-gray-200 hover:bg-gray-100 dark:bg-gray-900 dark:text-gray-200 dark:ring-gray-800"
+              >
+                {w} 최저가 모아보기 ›
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {related.length > 0 && (
         <section className="mt-8">

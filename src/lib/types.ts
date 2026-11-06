@@ -22,6 +22,7 @@ export type Product = {
   prevPrice?: number;
   updatedAt: string;
   history: PricePoint[];
+  searchTerms?: string[]; // 이 상품이 수집된 쿠팡 검색어들 (상세 페이지에서만 채움)
 };
 
 export type Deal = {

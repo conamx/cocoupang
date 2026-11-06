@@ -1,6 +1,8 @@
 import type { MetadataRoute } from 'next';
 import { site } from '@/lib/site';
-import { getProductIndex, getDeals, getPosts, getActiveCategories } from '@/lib/data';
+import { getProductIndex, getDeals, getPosts, getActiveCategories, getKeywordCounts } from '@/lib/data';
+import { KEYWORD_MIN_PRODUCTS, keywordPath } from '@/lib/keyword-url';
+import { searchKeywords } from '@/lib/sync/keywords';
 import { productPath } from '@/lib/product-url';
 import { PER_PAGE, categoryPath } from '@/lib/category-url';
 
@@ -9,11 +11,12 @@ export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = site.url;
-  const [products, deals, posts, activeCats] = await Promise.all([
+  const [products, deals, posts, activeCats, kwCounts] = await Promise.all([
     getProductIndex(),
     getDeals(5000),
     getPosts(),
     getActiveCategories(),
+    getKeywordCounts(),
   ]);
 
   const staticUrls: MetadataRoute.Sitemap = [
@@ -34,6 +37,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         priority: i === 0 ? 0.7 : 0.4,
       })),
     ),
+    // 품목별 최저가 페이지 (상품이 충분히 모인 것만)
+    ...searchKeywords
+      .filter((k) => (kwCounts[k.keyword] ?? 0) >= KEYWORD_MIN_PRODUCTS)
+      .map((k) => ({
+        url: `${base}${keywordPath(k.keyword)}`,
+        changeFrequency: 'daily' as const,
+        priority: 0.8,
+      })),
     ...products.map((p) => ({
       url: `${base}${productPath(p)}`,
       lastModified: new Date(p.updatedAt),

@@ -5,6 +5,7 @@ import { getCategoryCounts, getProducts } from '@/lib/data';
 import { coupangCategories, etcCategory } from '@/lib/site';
 import { CategoryChips } from '@/components/CategoryChips';
 import { ProductCard } from '@/components/ProductCard';
+import { KeywordLinks } from '@/components/KeywordLinks';
 import { PER_PAGE, categoryPath } from '@/lib/category-url';
 
 /** 카테고리 목록 공통 (1쪽: /coupang/category/{cat}, 2쪽부터: /coupang/category/{cat}/{n}) */
@@ -63,6 +64,11 @@ export async function CategoryListing({ id, page }: { id: string; page: number }
         </div>
       )}
       {pages > 1 && <Pager id={c.id} page={page} pages={pages} />}
+      {page === 1 && (
+        <div className="mt-10">
+          <KeywordLinks title={`${c.label} 품목별 최저가`} categoryId={c.id} limit={40} />
+        </div>
+      )}
     </div>
   );
 }

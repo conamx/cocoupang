@@ -8,6 +8,7 @@ export function ProductSection({
   href,
   products,
   ranked,
+  mobileMax,
   as: Heading = 'h2',
 }: {
   title: string;
@@ -15,6 +16,7 @@ export function ProductSection({
   href?: string;
   products: Product[];
   ranked?: boolean;
+  mobileMax?: number; // 모바일(2칸)에서 보여 줄 최대 개수 — 줄이 홀수로 끝나지 않게
   as?: 'h1' | 'h2';
 }) {
   if (products.length === 0) return null;
@@ -32,9 +34,15 @@ export function ProductSection({
         )}
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        {products.map((p, i) => (
-          <ProductCard key={p.id} product={p} rank={ranked ? i + 1 : undefined} />
-        ))}
+        {products.map((p, i) =>
+          mobileMax !== undefined && i >= mobileMax ? (
+            <div key={p.id} className="hidden sm:contents">
+              <ProductCard product={p} rank={ranked ? i + 1 : undefined} />
+            </div>
+          ) : (
+            <ProductCard key={p.id} product={p} rank={ranked ? i + 1 : undefined} />
+          ),
+        )}
       </div>
     </section>
   );
