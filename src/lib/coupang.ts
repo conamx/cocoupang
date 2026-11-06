@@ -111,6 +111,12 @@ export async function fetchGoldbox(): Promise<CoupangItem[] | null> {
   return (data ?? []).map(normalize).filter((x): x is CoupangItem => x !== null);
 }
 
+/** 골드박스 원본 응답 (어떤 가격 칸이 오는지 확인용) */
+export async function fetchGoldboxRaw(): Promise<unknown[]> {
+  if (!hasCoupangKeys()) return [];
+  return (await call<unknown[]>('GET', `${BASE}/products/goldbox`, { subId: subId() })) ?? [];
+}
+
 /** 키워드 검색 (limit 최대 10). 검색 API는 시간당 호출 제한이 있으니 키워드 수를 조절하세요. */
 export async function searchProducts(keyword: string, limit = 10): Promise<CoupangItem[] | null> {
   if (!hasCoupangKeys()) return null;

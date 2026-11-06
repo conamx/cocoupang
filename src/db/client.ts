@@ -11,7 +11,8 @@ export function db() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error('DATABASE_URL is not set (DATA_SOURCE=db 인데 DB 주소가 없습니다)');
   // 빌드 때 여러 작업자가 동시에 접속하므로 작업자당 연결 수를 줄이고, 막히면 오래 기다리지 않게
-  const client = postgres(url, { prepare: false, max: 3, idle_timeout: 20, connect_timeout: 15 });
+  // fetch_types: false — 연결할 때마다 타입 목록을 읽어 오는 준비 쿼리(왕복 2~3번)를 생략 (배열 타입 안 씀)
+  const client = postgres(url, { prepare: false, max: 3, idle_timeout: 20, connect_timeout: 15, fetch_types: false });
   _db = drizzle(client, { schema });
   return _db;
 }

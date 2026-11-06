@@ -15,7 +15,32 @@ import { expandQuery } from '@/lib/search-synonyms';
  */
 const useDb = () => (process.env.DATA_SOURCE ?? 'seed') === 'db';
 
-async function repo() {
+type Repo = typeof import('@/lib/data-db').dbData;
+
+// 빌드(next build) 중에는 DB 를 읽지 않음 — Netlify 빌드 서버에서 DB 연결이 멈춰 빌드가 실패하는 일이 있어서.
+// 빌드 때는 빈 데이터로 페이지 틀만 만들고, 배포 직후 수집 작업(/api/revalidate)이 실제 데이터로 다시 만듦.
+const isBuild = () => process.env.NEXT_PHASE === 'phase-production-build';
+const EMPTY: { [K in keyof Repo]: Awaited<ReturnType<Repo[K]>> } = {
+  getProducts: [],
+  getProduct: null,
+  getKeywordProducts: [],
+  getKeywordCounts: {},
+  getRelatedProducts: [],
+  getSpecialProducts: { products: [], total: 0 },
+  getProductSections: { goldbox: [], lowest: [], drops: [], byCategory: [] },
+  getCategoryCounts: {},
+  getProductIndex: [],
+  getPosts: [],
+  getPost: null,
+  search: { products: [], posts: [] },
+};
+// 'then' 은 undefined 로 — 아니면 await 가 이 객체를 Promise 로 착각해 영원히 기다림
+const buildStub = new Proxy({} as Repo, {
+  get: (_, k) => (k === 'then' || !(k in EMPTY) ? undefined : async () => EMPTY[k as keyof Repo]),
+});
+
+async function repo(): Promise<Repo> {
+  if (isBuild()) return buildStub;
   // 지연 import: 시드 모드에서는 DB 드라이버를 아예 로드하지 않음.
   const { dbData } = await import('@/lib/data-db');
   return dbData;

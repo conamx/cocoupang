@@ -10,6 +10,7 @@
  */
 import { syncCoupang, syncCoupangSearch } from '@/lib/sync/coupang-sync';
 import { repairSearchPrices } from './repair-search-prices';
+import { fetchGoldboxRaw, searchProducts } from '@/lib/coupang';
 
 async function revalidate(scope: 'coupang') {
   const site = process.env.NEXT_PUBLIC_SITE_URL;
@@ -41,13 +42,27 @@ async function main() {
     // 목록은 다음 날 아침 coupang 수집 때 함께 갱신됩니다 (Netlify 사용량 절약).
     const s = await syncCoupangSearch();
     console.log(JSON.stringify(s, null, 2));
+  } else if (job === 'revalidate') {
+    // 배포 직후: 빌드 때 빈 틀로 만들어진 홈·목록·사이트맵을 실제 데이터로 다시 만들기
+    await revalidate('coupang');
+  } else if (job === 'goldbox-raw') {
+    // 골드박스 API 가 주는 가격 칸 확인 (호출 1번) + 같은 상품을 검색 API 로 찾았을 때 가격 비교 (최대 3번)
+    const raw = (await fetchGoldboxRaw()) as Record<string, unknown>[];
+    console.log('골드박스', raw.length, '개, 칸:', Object.keys(raw[0] ?? {}).join(', '));
+    console.log(JSON.stringify(raw.slice(0, 3), null, 2));
+    for (const r of raw.slice(0, 3)) {
+      const name = String(r.productName ?? '').slice(0, 30);
+      const hit = (await searchProducts(name))?.find((x) => x.productId === String(r.productId));
+      console.log(`비교: ${name} | 골드박스 ${r.productPrice} | 검색 ${hit ? hit.price : '(검색 결과에 없음)'}`);
+      await new Promise((res) => setTimeout(res, 1200));
+    }
   } else if (job === 'repair-dry' || job === 'repair') {
     // 1회성 데이터 정리 (repair-dry = 바꿀 개수만 확인)
     const r = await repairSearchPrices(job === 'repair');
     console.log(JSON.stringify(r, null, 2));
     if (job === 'repair') await revalidate('coupang');
   } else {
-    console.error('usage: tsx scripts/sync.ts <coupang|search|repair-dry|repair>');
+    console.error('usage: tsx scripts/sync.ts <coupang|search|revalidate|goldbox-raw|repair-dry|repair>');
     process.exitCode = 1;
   }
 }

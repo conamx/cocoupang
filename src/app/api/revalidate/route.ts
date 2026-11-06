@@ -25,5 +25,9 @@ export async function POST(req: NextRequest) {
     revalidatePath(`/coupang/${k}/[[...page]]`, 'page');
   }
   revalidatePath('/sitemap.xml');
+  // 빌드 때 빈 틀로 만들어진 페이지들도 함께 (배포 직후 1번 호출)
+  revalidatePath('/blog');
+  revalidatePath('/blog/[slug]', 'page');
+  revalidatePath('/feed.xml');
   return Response.json({ ok: true, scope: scope ?? 'all' });
 }
