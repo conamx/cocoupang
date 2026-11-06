@@ -8,6 +8,21 @@
  * categoryId 는 src/lib/site.ts 의 coupangCategories 중 하나.
  */
 export const searchKeywords: { keyword: string; categoryId: string }[] = [
+  // PC부품 (블로그 DDR5 글로 실제 판매가 나온 분야 — 먼저 돌도록 맨 앞)
+  { keyword: 'DDR5 램', categoryId: 'pc' },
+  { keyword: 'DDR5 32GB', categoryId: 'pc' },
+  { keyword: 'NVMe SSD 1TB', categoryId: 'pc' },
+  { keyword: 'NVMe SSD 2TB', categoryId: 'pc' },
+  { keyword: '라이젠 CPU', categoryId: 'pc' },
+  { keyword: '인텔 CPU', categoryId: 'pc' },
+  { keyword: 'B650 메인보드', categoryId: 'pc' },
+  { keyword: 'B760 메인보드', categoryId: 'pc' },
+  { keyword: '그래픽카드 RTX', categoryId: 'pc' },
+  { keyword: '파워서플라이 750W', categoryId: 'pc' },
+  { keyword: 'CPU 쿨러', categoryId: 'pc' },
+  { keyword: '게이밍 모니터', categoryId: '1016' },
+  { keyword: '기계식 키보드', categoryId: '1016' },
+  { keyword: '게이밍 마우스', categoryId: '1016' },
   { keyword: '생수 2L', categoryId: '1012' },
   { keyword: '햇반', categoryId: '1012' },
   { keyword: '컵라면', categoryId: '1012' },
