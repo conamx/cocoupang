@@ -36,6 +36,13 @@ async function main() {
   if (job === 'coupang') {
     const r = await syncCoupang();
     console.log(JSON.stringify(r, null, 2));
+    // 오늘 공개할 정보글이 있으면 넣기 (상품 카드는 지금까지 모인 상품으로)
+    try {
+      const p = await insertPosts(true);
+      if (p.posts.length) console.log('정보글:', JSON.stringify(p.posts));
+    } catch (e) {
+      console.error('정보글 넣기 실패:', (e as Error).message);
+    }
     if (r.upserted > 0) await revalidate('coupang');
     if (r.collected === 0 && r.errors.length) process.exitCode = 1;
   } else if (job === 'search' || job === 'deals') {
@@ -60,7 +67,8 @@ async function main() {
     }
   } else if (job === 'posts-dry' || job === 'posts') {
     // 정보글 넣기 (posts-dry = 확인만). 발행일이 지난 글은 바로, 나머지는 그날 오전 9시에 자동 공개
-    const r = await insertPosts(job === 'posts');
+    // 수동 실행은 앞으로 7일 안에 공개할 글까지
+    const r = await insertPosts(job === 'posts', job === 'posts' ? 24 : 24 * 30);
     console.log(JSON.stringify(r, null, 2));
     if (job === 'posts') await revalidate('coupang');
   } else if (job === 'repair-dry' || job === 'repair') {

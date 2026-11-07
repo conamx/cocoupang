@@ -28,9 +28,14 @@ async function resolveProducts(body: string): Promise<{ body: string; cards: num
   return { body: lines.join('\n').replace(/\n{3,}/g, '\n\n').trim(), cards };
 }
 
-export async function insertPosts(apply: boolean) {
+/**
+ * horizonHours: 발행일이 지금부터 이 시간 안인 글만 넣음 (기본 24시간).
+ * 매일 아침 수집 뒤에 자동 실행 → 그날 공개할 글을 그때 넣어서, 상품 카드도 그때까지 모인 상품으로 채움.
+ */
+export async function insertPosts(apply: boolean, horizonHours = 24) {
   const out = [];
-  for (const d of drafts) {
+  const until = Date.now() + horizonHours * 3_600_000;
+  for (const d of drafts.filter((x) => new Date(x.date).getTime() <= until)) {
     const { body, cards } = await resolveProducts(d.body);
     const exists = ((await db().execute(sql`SELECT 1 FROM posts WHERE slug = ${d.slug}`)) as unknown[]).length > 0;
     out.push({ slug: d.slug, date: d.date, cards, exists });
