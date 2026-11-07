@@ -11,19 +11,30 @@ export function PriceChart({
   avg,
   compact,
   mini,
+  current,
 }: {
   history: PricePoint[];
   avg?: number;
   compact?: boolean;
   mini?: boolean;
+  /** 지금 가격과 확인 시각 — 기록이 하루뿐이거나 가격이 그대로여도 '오늘까지' 선을 이어 그림 */
+  current?: { price: number; at: string };
 }) {
   // 하루에 여러 번 바뀐 날은 그날 마지막 가격 하나로 (한국 날짜 기준) → 세로로 튀는 선 없이 날짜별로
   const byDay = new Map<string, PricePoint>();
   for (const p of [...history].sort((a, b) => a.observedAt.localeCompare(b.observedAt))) {
     byDay.set(new Date(new Date(p.observedAt).getTime() + 9 * 3600_000).toISOString().slice(0, 10), p);
   }
+  const kst = (iso: string) => new Date(new Date(iso).getTime() + 9 * 3600_000).toISOString().slice(0, 10);
+  // 마지막 기록 이후에 확인한 가격이 있으면 그 날짜까지 선을 이어 줌 (같은 가격이 계속돼도 '유지'가 보이게)
+  if (current) {
+    const last = [...byDay.values()].pop();
+    if (!last || kst(current.at) > kst(last.observedAt)) byDay.set(kst(current.at), { price: current.price, observedAt: current.at });
+  }
   const data = [...byDay.values()];
-  if (data.length < 2) return null;
+  if (data.length === 0) return null;
+  // 기록이 하루뿐이면 같은 가격으로 가로선 (오늘 처음 기록된 상품)
+  if (data.length === 1) data.unshift({ ...data[0], observedAt: new Date(new Date(data[0].observedAt).getTime() - 3600_000).toISOString() });
   const w = mini ? 400 : compact ? 380 : 640;
   const h = mini ? 64 : compact ? 200 : 210;
   const padL = mini ? 4 : 8;

@@ -86,6 +86,8 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   const s = priceStats(p);
   const url = `${site.url}${productPath(p)}`;
   const hasRange = s.count >= 2 && s.high.price > s.low.price;
+  // 그래프를 오늘(마지막 확인)까지 이어 그리기 위한 지금 가격
+  const cur = { price: p.currentPrice, at: s.checkedAt };
   // 이 상품이 수집된 검색어 중 페이지가 있는 것 (품목별 최저가 모음으로 연결)
   const terms = (p.searchTerms ?? []).filter((w) => findKeyword(keywordSlug(w))).slice(0, 6);
 
@@ -220,9 +222,9 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           </div>
           <p className="mt-1.5 text-xs text-gray-400">쿠팡 표시가 · {md(s.checkedAt)} 기준 · 쿠폰·카드 할인 제외</p>
 
-          {hasRange && (
-            <div className="mt-4 rounded-xl bg-gray-50 px-3 pb-3 pt-2 dark:bg-gray-900">
-              <PriceChart history={p.history} mini />
+          <div className="mt-4 rounded-xl bg-gray-50 px-3 pb-3 pt-2 dark:bg-gray-900">
+            <PriceChart history={p.history} mini current={cur} />
+            {hasRange ? (
               <div className="mt-1 grid grid-cols-3 text-center text-[11px] text-gray-400">
                 <span>
                   최저<b className="block text-sm text-blue-600 tabular-nums dark:text-blue-400">{won(s.low.price)}</b>
@@ -234,8 +236,12 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
                   최고<b className="block text-sm text-gray-700 tabular-nums dark:text-gray-200">{won(s.high.price)}</b>
                 </span>
               </div>
-            </div>
-          )}
+            ) : (
+              <p className="mt-1 text-center text-[12px] text-gray-500">
+                {s.days > 1 ? `${md(s.firstAt)}부터 ${s.days}일째 같은 가격` : '오늘부터 가격을 기록하고 있어요'}
+              </p>
+            )}
+          </div>
 
           <a
             href={affiliate}
@@ -249,20 +255,25 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         </div>
       </div>
 
-      {hasRange && (
+      {/* 가격이 그대로여도 그래프는 항상 (오늘까지 가로선) */}
+      {(
         <section className="mt-8">
           <div className="mb-2 flex items-baseline justify-between">
             <h2 className="text-base font-bold">가격 변동</h2>
             <span className="text-xs text-gray-400">
-              {md(s.firstAt)}부터 {s.count}회 기록 · 30일간 {s.changes30}번 바뀜
+              {hasRange
+                ? `${md(s.firstAt)}부터 ${s.count}회 기록 · 30일간 ${s.changes30}번 바뀜`
+                : s.days > 1
+                  ? `${md(s.firstAt)}부터 ${s.days}일째 변동 없음`
+                  : `${md(s.firstAt || s.checkedAt)}부터 기록 중`}
             </span>
           </div>
           <div className={card}>
             <div className="sm:hidden">
-              <PriceChart history={p.history} avg={s.avg} compact />
+              <PriceChart history={p.history} avg={hasRange ? s.avg : undefined} compact current={cur} />
             </div>
             <div className="hidden sm:block">
-              <PriceChart history={p.history} avg={s.avg} />
+              <PriceChart history={p.history} avg={hasRange ? s.avg : undefined} current={cur} />
             </div>
             <details className="mt-3 border-t border-gray-100 pt-3 text-sm dark:border-gray-800">
               <summary className="cursor-pointer text-[13px] font-semibold text-gray-500">날짜별 가격</summary>
