@@ -13,6 +13,7 @@ import { repairSearchPrices } from './repair-search-prices';
 import { repairOptions } from './repair-options';
 import { insertPosts } from './insert-posts';
 import { stats } from './stats';
+import { inspect } from './inspect';
 import { repairPrelock } from './repair-prelock';
 import { fetchGoldboxRaw, searchProducts } from '@/lib/coupang';
 
@@ -69,6 +70,8 @@ async function main() {
       console.log(`비교: ${name} | 골드박스 ${r.productPrice} | 검색 ${hit ? hit.price : '(검색 결과에 없음)'}`);
       await new Promise((res) => setTimeout(res, 1200));
     }
+  } else if (job === 'inspect') {
+    console.log(JSON.stringify(await inspect(), null, 2));
   } else if (job === 'stats') {
     console.log(JSON.stringify(await stats(), null, 2));
   } else if (job === 'posts-dry' || job === 'posts') {
