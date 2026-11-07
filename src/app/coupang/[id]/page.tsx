@@ -15,8 +15,8 @@ import { BookmarkButton } from '@/components/BookmarkButton';
 import type { Product } from '@/lib/types';
 
 // 가격은 하루 1회 수집 → 수집 직후 /api/revalidate 로 갱신. 평소엔 하루 캐시(크레딧 절약).
-// 12시간마다 갱신 (방문 시 저장된 페이지를 바로 보여주고 뒤에서 새로 만듦)
-export const revalidate = 43200;
+// 하루마다 갱신 (방문 시 저장된 페이지를 바로 보여주고 뒤에서 새로 만듦) — 가격은 매시간 수집, 페이지는 하루 단위로 반영해 Netlify 사용량 절약
+export const revalidate = 86400;
 
 // 빌드 때 미리 만들지 않고 첫 방문 때 만들어 캐시 (빌드 중 DB 호출이 몰려 시간 초과 나는 것 방지)
 export const dynamicParams = true;

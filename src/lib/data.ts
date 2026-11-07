@@ -155,13 +155,19 @@ export async function getRelatedProducts(id: string, limit = 12): Promise<Produc
 // 발행일(오전 9시, 한국시간)이 아직 안 된 예약 글은 사이트·사이트맵·검색에 보이지 않습니다.
 const isPublished = (p: Post) => p.date <= new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
 
+// 기본 정보글 — DB 정보글과 함께 보여 줌 (지금 사이트 방향과 맞는 글만; 핫딜·여행 글은 기능을 없애서 제외)
+const BASE_POSTS = new Set(['coupang-lowest-price-guide']);
+const basePosts = () => seedPosts.filter((p) => BASE_POSTS.has(p.slug) && isPublished(p));
+
 export async function getPosts(): Promise<Post[]> {
-  if (useDb()) return (await repo()).getPosts();
-  return seedPosts.filter(isPublished).sort((a, b) => b.date.localeCompare(a.date));
+  if (!useDb()) return seedPosts.filter(isPublished).sort((a, b) => b.date.localeCompare(a.date));
+  const fromDb = await (await repo()).getPosts();
+  const slugs = new Set(fromDb.map((p) => p.slug));
+  return [...fromDb, ...basePosts().filter((p) => !slugs.has(p.slug))].sort((a, b) => b.date.localeCompare(a.date));
 }
 
 export async function getPost(slug: string): Promise<Post | null> {
-  if (useDb()) return (await repo()).getPost(slug);
+  if (useDb()) return (await (await repo()).getPost(slug)) ?? basePosts().find((p) => p.slug === slug) ?? null;
   return seedPosts.find((p) => p.slug === slug && isPublished(p)) ?? null;
 }
 

@@ -15,8 +15,8 @@ import type { Product } from '@/lib/types';
  * 품목(검색어)별 쿠팡 최저가 모음 — "계란 최저가", "생수 최저가" 같은 검색으로 들어오는 페이지.
  * 하루 한 번 새로 만듦 (상품 가격은 매시간 수집에서 갱신, 이 페이지는 하루 단위로 반영).
  */
-// 12시간마다 갱신 (방문 시 저장된 페이지를 바로 보여주고 뒤에서 새로 만듦)
-export const revalidate = 43200;
+// 하루마다 갱신 (방문 시 저장된 페이지를 바로 보여주고 뒤에서 새로 만듦) — 가격은 매시간 수집, 페이지는 하루 단위로 반영해 Netlify 사용량 절약
+export const revalidate = 86400;
 export const dynamicParams = true;
 export function generateStaticParams() {
   return [];

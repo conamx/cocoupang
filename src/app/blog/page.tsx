@@ -4,11 +4,16 @@ import { getPosts } from '@/lib/data';
 
 export const revalidate = 3600;
 
-export const metadata: Metadata = {
-  title: '쇼핑·할인 정보',
-  description: '쿠팡 최저가 활용법, 가격 변동 보는 법, 여행 할인코드 등 쇼핑에 도움되는 정보.',
-  alternates: { canonical: '/blog' },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const posts = await getPosts();
+  return {
+    title: '쇼핑·할인 정보',
+    description: '쿠팡 최저가 활용법, 가격 변동 보는 법 등 쇼핑에 도움되는 정보.',
+    alternates: { canonical: '/blog' },
+    // 글이 하나도 없으면 빈 페이지로 평가되지 않게 검색 노출 제외
+    ...(posts.length === 0 ? { robots: { index: false, follow: true } } : {}),
+  };
+}
 
 export default async function BlogPage() {
   const posts = await getPosts();
