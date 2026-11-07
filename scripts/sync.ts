@@ -11,6 +11,7 @@
 import { syncCoupang, syncCoupangSearch } from '@/lib/sync/coupang-sync';
 import { repairSearchPrices } from './repair-search-prices';
 import { repairOptions } from './repair-options';
+import { insertPosts } from './insert-posts';
 import { fetchGoldboxRaw, searchProducts } from '@/lib/coupang';
 
 async function revalidate(scope: 'coupang') {
@@ -57,6 +58,11 @@ async function main() {
       console.log(`비교: ${name} | 골드박스 ${r.productPrice} | 검색 ${hit ? hit.price : '(검색 결과에 없음)'}`);
       await new Promise((res) => setTimeout(res, 1200));
     }
+  } else if (job === 'posts-dry' || job === 'posts') {
+    // 정보글 넣기 (posts-dry = 확인만). 발행일이 지난 글은 바로, 나머지는 그날 오전 9시에 자동 공개
+    const r = await insertPosts(job === 'posts');
+    console.log(JSON.stringify(r, null, 2));
+    if (job === 'posts') await revalidate('coupang');
   } else if (job === 'repair-dry' || job === 'repair') {
     // 1회성 데이터 정리 (repair-dry = 바꿀 개수만 확인) — 옵션 섞임 정리 (repair-search-prices 는 이미 적용됨)
     void repairSearchPrices;
