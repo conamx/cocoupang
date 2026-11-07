@@ -187,9 +187,9 @@ export async function POST(req: Request) {
     for (const [id, description] of descs) {
       await db().update(P).set({ description }).where(and(eq(P.id, id), isNull(P.description)));
     }
-    revalidatePath('/', 'layout');
     // 저장된 최종 상태를 함께 돌려줌 (매크로가 글에 상품 카드를 넣을 때 사용)
     const saved = await db().select().from(P).where(inArray(P.id, toSave.map((s) => s.productId)));
+    saved.forEach((p, i) => revalidateProduct(p, i === saved.length - 1)); // 상품 페이지들 + 목록은 한 번만
     const savedById = new Map(saved.map((s) => [s.id, toAdminProduct(s)]));
     for (const r of results) if (r.ok && r.id) r.product = savedById.get(r.id);
   }
@@ -197,6 +197,22 @@ export async function POST(req: Request) {
 }
 
 // 상품 수정 — 가격이 바뀌면 가격 이력·전일대비가 함께 갱신됨
+/** 상품 하나 바뀜 → 그 상품 페이지 (+ 목록이 바뀌는 수정이면 홈·목록·사이트맵) */
+function revalidateProduct(p: ProductRow | undefined, lists: boolean) {
+  if (p) {
+    const path = productPath(p);
+    revalidatePath(path);
+    revalidatePath(encodeURI(path));
+  }
+  if (lists) {
+    revalidatePath('/');
+    revalidatePath('/coupang');
+    revalidatePath('/coupang/category/[cat]', 'page');
+    revalidatePath('/coupang/category/[cat]/[page]', 'page');
+    revalidatePath('/sitemap.xml');
+  }
+}
+
 export async function PATCH(req: Request) {
   if (!isAdmin(req)) return unauthorized();
   if (!useDb()) return noDb();
@@ -255,8 +271,12 @@ export async function PATCH(req: Request) {
     })
     .where(eq(P.id, prev.id));
 
-  revalidatePath('/', 'layout');
   const [after] = await db().select().from(P).where(eq(P.id, prev.id)).limit(1);
+  // 소개글만 바꾼 경우(매크로 '소개글 채우기')는 그 상품 페이지만 새로 만듦 —
+  // 사이트 전체 캐시를 비우면 수천 번 호출될 때 모든 페이지가 계속 다시 만들어져 느려지고 Netlify 사용량이 늘어남
+  const onlyDesc =
+    b.description !== undefined && b.price === undefined && !b.name && !b.image && !b.categoryId && !b.affiliateUrl;
+  revalidateProduct(after, !onlyDesc);
   return Response.json({ ok: true, product: toAdminProduct(after) });
 }
 
@@ -265,8 +285,8 @@ export async function DELETE(req: Request) {
   if (!useDb()) return noDb();
   const id = new URL(req.url).searchParams.get('id');
   if (!id) return Response.json({ error: 'id 필요' }, { status: 400 });
-  const r = await db().delete(P).where(eq(P.id, id)).returning({ id: P.id });
+  const r = await db().delete(P).where(eq(P.id, id)).returning({ id: P.id, name: P.name });
   if (!r.length) return Response.json({ error: '상품 없음' }, { status: 404 });
-  revalidatePath('/', 'layout');
+  revalidateProduct(r[0] as ProductRow, true); // 지운 상품 페이지(→404) + 목록
   return Response.json({ ok: true });
 }
