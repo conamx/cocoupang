@@ -8,7 +8,7 @@
  * 필요한 환경변수: DATABASE_URL, COUPANG_ACCESS_KEY, COUPANG_SECRET_KEY
  * 선택: NEXT_PUBLIC_SITE_URL + CRON_SECRET → 수집 후 사이트 캐시를 즉시 갱신
  */
-import { syncCoupang, syncCoupangSearch } from '@/lib/sync/coupang-sync';
+import { refreshStale, syncCoupang, syncCoupangSearch } from '@/lib/sync/coupang-sync';
 import { repairSearchPrices } from './repair-search-prices';
 import { repairOptions } from './repair-options';
 import { insertPosts } from './insert-posts';
@@ -52,6 +52,8 @@ async function main() {
     // 목록은 다음 날 아침 coupang 수집 때 함께 갱신됩니다 (Netlify 사용량 절약).
     const s = await syncCoupangSearch();
     console.log(JSON.stringify(s, null, 2));
+    // 이어서 오래 확인 못 한 상품 다시 확인
+    console.log('재확인:', JSON.stringify(await refreshStale()));
   } else if (job === 'revalidate') {
     // 배포 직후: 빌드 때 빈 틀로 만들어진 홈·목록·사이트맵을 실제 데이터로 다시 만들기
     await revalidate('coupang');

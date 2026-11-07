@@ -328,3 +328,63 @@ export async function syncCoupangSearch(): Promise<CoupangSyncResult & { keyword
 async function ensureSearchTermsColumn() {
   await db().execute(sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS search_terms text`);
 }
+
+/**
+ * 오래 확인 못 한 상품 다시 확인 (매시간, 검색 수집 뒤).
+ * 쿠팡 API 에는 '상품번호로 지금 가격 조회'가 없어서, 상품 이름으로 검색해 같은 상품번호를 찾아 가격을 갱신.
+ * 베스트 순위·검색 상위에서 빠진 상품도 이렇게 하루~며칠에 한 번은 가격을 확인하게 됨.
+ * 같은 상품을 계속 다시 시도하지 않도록 시도 시각을 기록(48시간 안에 시도한 상품은 건너뜀).
+ */
+export async function refreshStale(budget = Number(process.env.COUPANG_REFRESH_PER_RUN ?? 15)) {
+  const result = { tried: 0, found: 0, updated: 0, errors: [] as string[] };
+  if (budget <= 0 || !hasCoupangKeys() || (await cooldownUntil())) return result;
+  await db().execute(sql`CREATE TABLE IF NOT EXISTS refresh_tries (id text PRIMARY KEY, tried_at timestamptz NOT NULL)`);
+  const stale = (await db().execute(sql`
+    SELECT p.id, p.name, p.category_id, p.category_label FROM products p
+    LEFT JOIN refresh_tries t ON t.id = p.id
+    WHERE p.source <> 'manual' AND p.updated_at < now() - interval '24 hours'
+      AND (t.tried_at IS NULL OR t.tried_at < now() - interval '48 hours')
+    ORDER BY p.updated_at ASC LIMIT ${budget}`)) as unknown as { id: string; name: string; category_id: string; category_label: string }[];
+
+  for (const p of stale) {
+    // 이름 앞부분(쉼표 앞, 괄호 뺀 6단어·40자 안쪽)으로 검색
+    const query = p.name.split(',')[0].replace(/[(\[][^)\]]*[)\]]/g, ' ').replace(/\s+/g, ' ').trim().split(' ').slice(0, 6).join(' ').slice(0, 40);
+    result.tried++;
+    await db().execute(sql`
+      INSERT INTO refresh_tries (id, tried_at) VALUES (${p.id}, now())
+      ON CONFLICT (id) DO UPDATE SET tried_at = now()`);
+    try {
+      const hit = ((await searchProducts(query)) ?? []).find((it) => it.productId === p.id);
+      if (hit) {
+        result.found++;
+        const row = { ...hit, categoryId: p.category_id, categoryLabel: p.category_label };
+        const { price } = await splitByVendor([row]);
+        if (price.length) {
+          const r = await upsertProducts([
+            {
+              productId: hit.productId,
+              name: hit.name,
+              image: hit.image,
+              price: hit.price,
+              categoryId: p.category_id,
+              categoryLabel: p.category_label,
+              affiliateUrl: hit.affiliateUrl,
+              isRocket: hit.isRocket,
+              source: 'search', // 'search' 는 기존 수집경로·순위·카테고리를 유지함
+            },
+          ]);
+          await rememberVendor(price);
+          result.updated += r.upserted;
+        }
+      }
+    } catch (e) {
+      result.errors.push(`refresh ${p.id}: ${(e as Error).message}`);
+      if (isLimitError(e)) {
+        await startCooldown((e as Error).message);
+        break;
+      }
+    }
+    await sleep(1200);
+  }
+  return result;
+}
