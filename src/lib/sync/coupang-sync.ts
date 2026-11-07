@@ -97,6 +97,43 @@ async function splitByVendor<T extends { productId: string; affiliateUrl?: strin
   return { price, other };
 }
 
+/**
+ * 옵션별 가격 모으기 (화면 표시는 12월 배포 때 — 지금은 데이터만 쌓음).
+ * 같은 상품번호라도 API 마다·검색 결과마다 다른 옵션(1개/2개, 용량 등)이 들어옴 → 옵션(vendorItemId)마다 따로 저장.
+ * 나중에 '옵션별 가격', '여러 개 사면 얼마 절약'을 보여 줄 재료.
+ */
+export async function recordOptions(items: CoupangItem[]) {
+  const rows = new Map<string, { pid: string; vid: string; name: string; price: number }>();
+  for (const it of items) {
+    const vid = vendorOf(it.affiliateUrl);
+    if (vid) rows.set(`${it.productId}:${vid}`, { pid: it.productId, vid, name: it.name, price: it.price });
+  }
+  if (rows.size === 0) return;
+  await db().execute(sql`CREATE TABLE IF NOT EXISTS product_options (
+    product_id text NOT NULL, vendor_item_id text NOT NULL, name text NOT NULL, price integer NOT NULL,
+    first_seen timestamptz NOT NULL DEFAULT now(), last_seen timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (product_id, vendor_item_id))`);
+  await db().execute(sql`CREATE TABLE IF NOT EXISTS option_price_history (
+    product_id text NOT NULL, vendor_item_id text NOT NULL, price integer NOT NULL, observed_at timestamptz NOT NULL DEFAULT now())`);
+  await db().execute(sql`CREATE INDEX IF NOT EXISTS option_price_history_idx ON option_price_history (product_id, vendor_item_id, observed_at)`);
+  const list = [...rows.values()];
+  for (let i = 0; i < list.length; i += 200) {
+    const chunk = list.slice(i, i + 200);
+    const values = sql.join(chunk.map((r) => sql`(${r.pid}::text, ${r.vid}::text, ${r.name}::text, ${r.price}::int)`), sql`, `);
+    // 가격 기록: 그 옵션의 오늘(한국 날짜) 기록이 없거나 가격이 바뀌었을 때만
+    await db().execute(sql`
+      INSERT INTO option_price_history (product_id, vendor_item_id, price)
+      SELECT v.pid, v.vid, v.price FROM (VALUES ${values}) AS v(pid, vid, name, price)
+      LEFT JOIN product_options o ON o.product_id = v.pid AND o.vendor_item_id = v.vid
+      WHERE o.product_id IS NULL OR o.price <> v.price
+        OR (o.last_seen AT TIME ZONE 'Asia/Seoul')::date < (now() AT TIME ZONE 'Asia/Seoul')::date`);
+    await db().execute(sql`
+      INSERT INTO product_options (product_id, vendor_item_id, name, price)
+      SELECT pid, vid, name, price FROM (VALUES ${values}) AS v(pid, vid, name, price)
+      ON CONFLICT (product_id, vendor_item_id) DO UPDATE SET name = excluded.name, price = excluded.price, last_seen = now()`);
+  }
+}
+
 // 가격을 반영한 상품에 추적 옵션 기록 (처음 한 번만)
 async function rememberVendor(rows: { productId: string; affiliateUrl?: string }[]) {
   const pairs = rows.map((r) => [r.productId, vendorOf(r.affiliateUrl)] as const).filter((p): p is readonly [string, string] => !!p[1]);
@@ -153,8 +190,10 @@ export async function syncCoupang(): Promise<CoupangSyncResult> {
   // 카테고리당 베스트 상품 수 (API 최대 100)
   const bestLimit = Number(process.env.COUPANG_BEST_LIMIT ?? 100);
   const rows = new Map<string, Row>();
+  const seen: CoupangItem[] = []; // 옵션별 가격 기록용 (합치기 전 원본)
   const add = (items: CoupangItem[], source: Source, cat: (it: CoupangItem) => { id: string; label: string }) => {
     result.bySource[source] = (result.bySource[source] ?? 0) + items.length;
+    seen.push(...items);
     for (const it of items) {
       const prev = rows.get(it.productId);
       if (prev && source !== 'goldbox') continue;
@@ -203,6 +242,11 @@ export async function syncCoupang(): Promise<CoupangSyncResult> {
   const p = schema.products;
   if (goldboxOk) await db().update(p).set({ source: 'best' }).where(sql`${p.source} = 'goldbox'`);
 
+  try {
+    await recordOptions(seen);
+  } catch (e) {
+    result.errors.push(`options: ${(e as Error).message}`);
+  }
   // 추적 중인 옵션과 같은 결과만 가격 반영, 다른 옵션은 골드박스·순위만
   const { price: priced, other } = await splitByVendor(all);
   const r = await upsertProducts(
@@ -259,6 +303,7 @@ export async function syncCoupangSearch(): Promise<CoupangSyncResult & { keyword
   const rows = new Map<string, Row>();
   const tags = new Map<string, string[]>(); // 검색어 → 그 검색어로 나온 상품들
   const fallback: string[] = [];
+  const seen: CoupangItem[] = [];
   for (const k of ks) {
     try {
       const items = (await searchProducts(k.keyword)) ?? [];
@@ -266,6 +311,7 @@ export async function syncCoupangSearch(): Promise<CoupangSyncResult & { keyword
       if (items.length > 0 && items.filter((it) => goldbox.has(it.productId)).length * 2 >= items.length) {
         fallback.push(k.keyword);
       } else {
+        seen.push(...items);
         for (const it of items) {
           if (!rows.has(it.productId)) rows.set(it.productId, { ...it, rank: undefined, source: 'search', categoryId: k.categoryId, categoryLabel: labelOf(k.categoryId) });
           tags.set(k.keyword, [...(tags.get(k.keyword) ?? []), it.productId]);
@@ -282,6 +328,11 @@ export async function syncCoupangSearch(): Promise<CoupangSyncResult & { keyword
   }
   if (fallback.length) (result as { fallback?: string[] }).fallback = fallback;
 
+  try {
+    await recordOptions(seen);
+  } catch (e) {
+    result.errors.push(`options: ${(e as Error).message}`);
+  }
   // 가격은 '추적 중인 옵션'과 같은 결과만 반영 (다른 옵션이면 꼬리표만). 직접 등록 상품은 가격을 건드리지 않음.
   const ids = [...rows.keys()];
   const manual = new Set(
@@ -372,6 +423,7 @@ export async function refreshStale(budget = Number(process.env.COUPANG_REFRESH_P
       }
       if (hit) {
         result.found++;
+        await recordOptions([hit]).catch(() => {});
         const row = { ...hit, categoryId: p.category_id, categoryLabel: p.category_label };
         const { price } = await splitByVendor([row]);
         if (price.length) {
