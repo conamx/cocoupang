@@ -67,7 +67,7 @@ async function main() {
     }
   } else if (job === 'posts-dry' || job === 'posts') {
     // 정보글 넣기 (posts-dry = 확인만). 발행일이 지난 글은 바로, 나머지는 그날 오전 9시에 자동 공개
-    // 수동 실행은 앞으로 7일 안에 공개할 글까지
+    // posts: 24시간 안에 공개할 글만 넣음 / posts-dry: 앞으로 30일 치를 미리 확인
     const r = await insertPosts(job === 'posts', job === 'posts' ? 24 : 24 * 30);
     console.log(JSON.stringify(r, null, 2));
     if (job === 'posts') await revalidate('coupang');
