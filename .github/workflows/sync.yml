@@ -31,7 +31,7 @@ jobs:
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
       NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
       COUPANG_SEARCH_PER_RUN: '45' # 매시간 쿠팡 검색 호출 수 (키워드 약 1,080개 → 하루 한 바퀴)
-      COUPANG_REFRESH_PER_RUN: '15' # 매시간 오래 확인 못 한 상품 다시 확인 (하루 360개)
+      COUPANG_REFRESH_PER_RUN: '30' # 매시간 재확인 검색 호출 수 (하루 넘게 확인 못 한 상품, 상품당 1~2번) — 1순위: 모든 상품 매일 가격 확인
       JOB: ${{ inputs.job || (github.event.schedule == '40 22 * * *' && 'coupang' || 'search') }}
     steps:
       - name: DB 미설정이면 건너뛰기

@@ -230,6 +230,11 @@ export async function syncCoupang(): Promise<CoupangSyncResult> {
   result.historyAdded = r.historyAdded;
   (result as { otherOption?: number }).otherOption = other.length;
   result.indexnow = await notifyIndexNow(all.map((x) => x.productId));
+  // 매일 확인 현황 (1순위 지표): 최근 24시간 안에 가격을 확인한 상품 비율
+  const [cov] = (await db().execute(sql`
+    SELECT count(*)::int AS total, count(*) FILTER (WHERE updated_at > now() - interval '24 hours')::int AS checked
+    FROM products WHERE source <> 'manual'`)) as unknown as { total: number; checked: number }[];
+  (result as { coverage?: string }).coverage = `${cov.checked}/${cov.total} (${Math.round((cov.checked / Math.max(1, cov.total)) * 100)}%) 24시간 안 확인`;
 
   return result;
 }
@@ -333,28 +338,38 @@ async function ensureSearchTermsColumn() {
  * 오래 확인 못 한 상품 다시 확인 (매시간, 검색 수집 뒤).
  * 쿠팡 API 에는 '상품번호로 지금 가격 조회'가 없어서, 상품 이름으로 검색해 같은 상품번호를 찾아 가격을 갱신.
  * 베스트 순위·검색 상위에서 빠진 상품도 이렇게 하루~며칠에 한 번은 가격을 확인하게 됨.
- * 같은 상품을 계속 다시 시도하지 않도록 시도 시각을 기록(48시간 안에 시도한 상품은 건너뜀).
+ * 목표: 모든 상품을 매일 한 번은 가격 확인 (사이트의 1순위 — 하루 단위 기록이 빠짐없이 쌓여야 함).
+ * 20시간 넘게 확인 못 한 상품이 대상, 같은 상품은 20시간에 한 번만 시도.
  */
-export async function refreshStale(budget = Number(process.env.COUPANG_REFRESH_PER_RUN ?? 15)) {
-  const result = { tried: 0, found: 0, updated: 0, errors: [] as string[] };
+export async function refreshStale(budget = Number(process.env.COUPANG_REFRESH_PER_RUN ?? 30)) {
+  // budget = 이번 시간에 쓸 검색 호출 수 (상품 하나에 1~2번)
+  const result = { tried: 0, found: 0, updated: 0, calls: 0, errors: [] as string[] };
   if (budget <= 0 || !hasCoupangKeys() || (await cooldownUntil())) return result;
   await db().execute(sql`CREATE TABLE IF NOT EXISTS refresh_tries (id text PRIMARY KEY, tried_at timestamptz NOT NULL)`);
   const stale = (await db().execute(sql`
     SELECT p.id, p.name, p.category_id, p.category_label FROM products p
     LEFT JOIN refresh_tries t ON t.id = p.id
-    WHERE p.source <> 'manual' AND p.updated_at < now() - interval '24 hours'
-      AND (t.tried_at IS NULL OR t.tried_at < now() - interval '48 hours')
+    WHERE p.source <> 'manual' AND p.updated_at < now() - interval '20 hours'
+      AND (t.tried_at IS NULL OR t.tried_at < now() - interval '20 hours')
     ORDER BY p.updated_at ASC LIMIT ${budget}`)) as unknown as { id: string; name: string; category_id: string; category_label: string }[];
 
   for (const p of stale) {
-    // 이름 앞부분(쉼표 앞, 괄호 뺀 6단어·40자 안쪽)으로 검색
-    const query = p.name.split(',')[0].replace(/[(\[][^)\]]*[)\]]/g, ' ').replace(/\s+/g, ' ').trim().split(' ').slice(0, 6).join(' ').slice(0, 40);
+    if (result.calls >= budget) break;
+    // 이름 앞부분(쉼표 앞, 괄호 뺀 6단어·40자 안쪽)으로 검색 → 못 찾으면 이름 전체로 한 번 더
+    const short = p.name.split(',')[0].replace(/[(\[][^)\]]*[)\]]/g, ' ').replace(/\s+/g, ' ').trim().split(' ').slice(0, 6).join(' ').slice(0, 40);
+    const full = p.name.replace(/\s+/g, ' ').trim().slice(0, 80);
     result.tried++;
     await db().execute(sql`
       INSERT INTO refresh_tries (id, tried_at) VALUES (${p.id}, now())
       ON CONFLICT (id) DO UPDATE SET tried_at = now()`);
     try {
-      const hit = ((await searchProducts(query)) ?? []).find((it) => it.productId === p.id);
+      result.calls++;
+      let hit = ((await searchProducts(short)) ?? []).find((it) => it.productId === p.id);
+      if (!hit && full !== short && result.calls < budget) {
+        result.calls++;
+        await sleep(1200);
+        hit = ((await searchProducts(full)) ?? []).find((it) => it.productId === p.id);
+      }
       if (hit) {
         result.found++;
         const row = { ...hit, categoryId: p.category_id, categoryLabel: p.category_label };
