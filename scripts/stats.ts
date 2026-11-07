@@ -1,0 +1,27 @@
+/** 수집 상태 점검 — 상품별 마지막 가격 확인 시점 분포 (읽기만 함) */
+import { sql } from 'drizzle-orm';
+import { db } from '@/db/client';
+
+export async function stats() {
+  const q = async <T,>(s: ReturnType<typeof sql>) => (await db().execute(s)) as unknown as T[];
+  const [age] = await q<Record<string, number>>(sql`
+    SELECT count(*)::int AS total,
+      count(*) FILTER (WHERE updated_at > now() - interval '26 hours')::int AS "24시간 안",
+      count(*) FILTER (WHERE updated_at <= now() - interval '26 hours' AND updated_at > now() - interval '3 days')::int AS "1~3일",
+      count(*) FILTER (WHERE updated_at <= now() - interval '3 days' AND updated_at > now() - interval '7 days')::int AS "3~7일",
+      count(*) FILTER (WHERE updated_at <= now() - interval '7 days')::int AS "7일 넘음",
+      count(*) FILTER (WHERE search_terms IS NOT NULL)::int AS "꼬리표 있음",
+      count(*) FILTER (WHERE description IS NOT NULL)::int AS "소개글 있음"
+    FROM products`);
+  const bySource = await q<{ source: string; n: number; fresh: number }>(sql`
+    SELECT source, count(*)::int AS n, count(*) FILTER (WHERE updated_at > now() - interval '26 hours')::int AS fresh
+    FROM products GROUP BY source ORDER BY n DESC`);
+  const days = await q<{ days: number; n: number }>(sql`
+    SELECT d AS days, count(*)::int AS n FROM (
+      SELECT count(DISTINCT (observed_at AT TIME ZONE 'Asia/Seoul')::date) AS d FROM price_history GROUP BY product_id
+    ) t GROUP BY d ORDER BY d`);
+  const [hist] = await q<{ rows: number; mb: number }>(sql`
+    SELECT count(*)::int AS rows, round(pg_total_relation_size('price_history') / 1048576.0, 1)::float AS mb FROM price_history`);
+  const [dbsize] = await q<{ mb: number }>(sql`SELECT round(pg_database_size(current_database()) / 1048576.0, 1)::float AS mb`);
+  return { 상품: age, 수집경로별: bySource, '기록된 날 수 분포': days, 가격기록: hist, 'DB 전체 MB': dbsize.mb };
+}

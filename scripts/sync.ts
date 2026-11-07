@@ -12,6 +12,7 @@ import { syncCoupang, syncCoupangSearch } from '@/lib/sync/coupang-sync';
 import { repairSearchPrices } from './repair-search-prices';
 import { repairOptions } from './repair-options';
 import { insertPosts } from './insert-posts';
+import { stats } from './stats';
 import { fetchGoldboxRaw, searchProducts } from '@/lib/coupang';
 
 async function revalidate(scope: 'coupang') {
@@ -65,6 +66,8 @@ async function main() {
       console.log(`비교: ${name} | 골드박스 ${r.productPrice} | 검색 ${hit ? hit.price : '(검색 결과에 없음)'}`);
       await new Promise((res) => setTimeout(res, 1200));
     }
+  } else if (job === 'stats') {
+    console.log(JSON.stringify(await stats(), null, 2));
   } else if (job === 'posts-dry' || job === 'posts') {
     // 정보글 넣기 (posts-dry = 확인만). 발행일이 지난 글은 바로, 나머지는 그날 오전 9시에 자동 공개
     // posts: 24시간 안에 공개할 글만 넣음 / posts-dry: 앞으로 30일 치를 미리 확인

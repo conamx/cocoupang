@@ -223,9 +223,8 @@ export async function syncCoupang(): Promise<CoupangSyncResult> {
   for (const x of other) {
     await db().execute(sql`
       UPDATE products SET rank = ${x.rank ?? null},
-        source = CASE WHEN source = 'manual' THEN source WHEN ${x.source}::text = 'goldbox' THEN 'goldbox' ELSE source END,
-        updated_at = now()
-      WHERE id = ${x.productId}`);
+        source = CASE WHEN source = 'manual' THEN source WHEN ${x.source}::text = 'goldbox' THEN 'goldbox' ELSE source END
+      WHERE id = ${x.productId}`); // 가격을 확인한 게 아니므로 updated_at(확인 시각)은 그대로
   }
   result.upserted = r.upserted;
   result.historyAdded = r.historyAdded;
