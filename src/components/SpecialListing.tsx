@@ -29,7 +29,7 @@ export const SPECIAL: Record<SpecialKind, { path: string; title: string; h1: str
     path: '/coupang/goldbox',
     title: '오늘의 쿠팡 골드박스 특가',
     h1: '오늘의 골드박스 특가',
-    desc: '쿠팡이 하루 한정으로 할인하는 골드박스 상품이에요. 매일 아침 새로 바뀝니다.',
+    desc: '쿠팡이 하루 한정으로 할인하는 골드박스 상품이에요. 매일 아침 새로 바뀌고, 할인은 옵션(용량·구성)마다 다를 수 있어 표시 가격과 다를 수 있어요.',
     empty: '오늘 골드박스 상품을 불러오는 중이에요.',
     ranked: true,
   },

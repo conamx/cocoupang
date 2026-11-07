@@ -221,6 +221,11 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${verdictCls}`}>{s.verdict.text}</span>
           </div>
           <p className="mt-1.5 text-xs text-gray-400">쿠팡 표시가 · {md(s.checkedAt)} 기준 · 쿠폰·카드 할인 제외</p>
+          {p.source === 'goldbox' && (
+            <p className="mt-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+              오늘의 골드박스 상품이에요. 골드박스 할인은 옵션(용량·구성)마다 다를 수 있어서, 할인 가격은 쿠팡에서 확인해 주세요.
+            </p>
+          )}
 
           <div className="mt-4 rounded-xl bg-gray-50 px-3 pb-3 pt-2 dark:bg-gray-900">
             <PriceChart history={p.history} mini current={cur} />
