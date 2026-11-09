@@ -152,6 +152,14 @@ async function rememberVendor(rows: { productId: string; affiliateUrl?: string }
   }
 }
 
+/** 매일 확인 현황: 최근 24시간 안에 가격을 확인한 상품 비율 (0~1) */
+async function coverage(): Promise<{ total: number; checked: number; ratio: number }> {
+  const [c] = (await db().execute(sql`
+    SELECT count(*)::int AS total, count(*) FILTER (WHERE updated_at > now() - interval '24 hours')::int AS checked
+    FROM products`)) as unknown as { total: number; checked: number }[];
+  return { ...c, ratio: c.checked / Math.max(1, c.total) };
+}
+
 // 이번 시간에 수집할 검색 키워드 (시간 기준으로 순환 → 하루 24 × perRun 개)
 function keywordsForThisHour(perRun: number) {
   if (perRun <= 0 || searchKeywords.length === 0) return [];
@@ -281,10 +289,8 @@ export async function syncCoupang(): Promise<CoupangSyncResult> {
   (result as { otherOption?: number }).otherOption = other.length;
   result.indexnow = await notifyIndexNow(all.map((x) => x.productId));
   // 매일 확인 현황 (1순위 지표): 최근 24시간 안에 가격을 확인한 상품 비율
-  const [cov] = (await db().execute(sql`
-    SELECT count(*)::int AS total, count(*) FILTER (WHERE updated_at > now() - interval '24 hours')::int AS checked
-    FROM products`)) as unknown as { total: number; checked: number }[];
-  (result as { coverage?: string }).coverage = `${cov.checked}/${cov.total} (${Math.round((cov.checked / Math.max(1, cov.total)) * 100)}%) 24시간 안 확인`;
+  const cov = await coverage();
+  (result as { coverage?: string }).coverage = `${cov.checked}/${cov.total} (${Math.round(cov.ratio * 100)}%) 24시간 안 확인`;
 
   return result;
 }
@@ -348,7 +354,20 @@ export async function syncCoupangSearch(): Promise<CoupangSyncResult & { keyword
         )) as unknown as { id: string }[]).map((r) => r.id)
       : [],
   );
-  const { price: all } = await splitByVendor([...rows.values()].filter((x) => !manual.has(x.productId)));
+  // 1순위는 '있는 상품 매일 확인' — 24시간 안 확인 비율이 기준(기본 90%) 아래면 새 상품은 받지 않고 있는 상품만 갱신
+  const minCov = Number(process.env.COUPANG_MIN_COVERAGE ?? 0.9);
+  const cov = await coverage();
+  const existing = new Set(
+    ids.length
+      ? ((await db().execute(sql`SELECT id FROM products WHERE id IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})`)) as unknown as {
+          id: string;
+        }[]).map((r) => r.id)
+      : [],
+  );
+  const intake = cov.ratio >= minCov;
+  (result as { intake?: string }).intake = `${intake ? '새 상품 받음' : '새 상품 멈춤(있는 상품 먼저)'} · 확인 ${Math.round(cov.ratio * 100)}%`;
+  const candidates = [...rows.values()].filter((x) => !manual.has(x.productId) && (intake || existing.has(x.productId)));
+  const { price: all } = await splitByVendor(candidates);
   result.collected = rows.size;
   if (rows.size === 0) return result;
   const r = all.length
