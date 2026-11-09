@@ -48,6 +48,8 @@ function matchCategory(name?: string): { id: string; label: string } {
  *  - 이번에 수집한 검색어 중 상품이 충분히 모인 품목 페이지
  */
 async function notifyIndexNow(ids: string[], keywords: string[] = []): Promise<string> {
+  // INDEXNOW=off: Netlify 크레딧이 빠듯할 때 끔 (알림을 보내면 검색 봇이 더 자주 와서 페이지 생성 비용이 늘어남)
+  if (process.env.INDEXNOW === 'off') return 'off';
   if (ids.length === 0 && keywords.length === 0) return 'skip';
   try {
     const fresh = ids.length
