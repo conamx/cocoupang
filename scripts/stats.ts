@@ -6,6 +6,9 @@ export async function stats() {
   const q = async <T,>(s: ReturnType<typeof sql>) => (await db().execute(s)) as unknown as T[];
   const [age] = await q<Record<string, number>>(sql`
     SELECT count(*)::int AS total,
+      count(*) FILTER (WHERE updated_at > now() - interval '1 hour')::int AS "1시간 안",
+      count(*) FILTER (WHERE updated_at > now() - interval '6 hours')::int AS "6시간 안",
+      count(*) FILTER (WHERE updated_at > now() - interval '24 hours')::int AS "24시간 안(정확)",
       count(*) FILTER (WHERE updated_at > now() - interval '26 hours')::int AS "24시간 안",
       count(*) FILTER (WHERE updated_at <= now() - interval '26 hours' AND updated_at > now() - interval '3 days')::int AS "1~3일",
       count(*) FILTER (WHERE updated_at <= now() - interval '3 days' AND updated_at > now() - interval '7 days')::int AS "3~7일",
