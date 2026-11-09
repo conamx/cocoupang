@@ -15,6 +15,7 @@ import { repairSearchPrices } from './repair-search-prices';
 import { repairOptions } from './repair-options';
 import { insertPosts } from './insert-posts';
 import { stats } from './stats';
+import { fillDescriptions } from './fill-descriptions';
 import { inspect } from './inspect';
 import { repairPrelock } from './repair-prelock';
 import { fetchGoldboxRaw, searchProducts } from '@/lib/coupang';
@@ -69,6 +70,13 @@ async function runHourly() {
   const s = await syncCoupangSearch();
   console.log(JSON.stringify(s, null, 2));
   console.log('재확인:', JSON.stringify(await refreshStale()));
+  // 소개글 없는 상품 채우기 (제미나이, 한 번에 3개씩 · 무료 사용량 안에서)
+  try {
+    const d = await fillDescriptions(Number(process.env.DESC_PER_HOUR ?? 10), true);
+    console.log('소개글:', JSON.stringify({ saved: d.saved, skipped: d.skipped, calls: d.calls, stopped: d.stopped, errors: d.errors.slice(0, 3) }));
+  } catch (e) {
+    console.error('소개글 실패:', (e as Error).message);
+  }
 }
 
 async function main() {
@@ -117,6 +125,9 @@ async function main() {
     }
   } else if (job === 'inspect') {
     console.log(JSON.stringify(await inspect(), null, 2));
+  } else if (job === 'desc-sample') {
+    // 소개글 샘플 (저장 안 함)
+    console.log(JSON.stringify(await fillDescriptions(1, false), null, 2));
   } else if (job === 'stats') {
     console.log(JSON.stringify(await stats(), null, 2));
   } else if (job === 'posts-dry' || job === 'posts') {

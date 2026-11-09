@@ -16,7 +16,7 @@ on:
       job:
         description: '실행할 작업'
         type: choice
-        options: [loop, coupang, search, stats, inspect, revalidate, posts-dry, posts, goldbox-raw, repair-dry, repair]
+        options: [loop, coupang, search, stats, inspect, desc-sample, revalidate, posts-dry, posts, goldbox-raw, repair-dry, repair]
         default: coupang
 
 # 수집 작업(loop·search·coupang)은 한 그룹 → 동시에 두 개가 돌며 쿠팡을 중복 호출하지 않음
@@ -35,6 +35,8 @@ jobs:
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       COUPANG_ACCESS_KEY: ${{ secrets.COUPANG_ACCESS_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }} # 소개글 작성 (없으면 건너뜀)
+      DESC_PER_HOUR: '10' # 매시간 제미나이 호출 수 (한 번에 상품 3개) — 무료 사용량 안에서
       COUPANG_SECRET_KEY: ${{ secrets.COUPANG_SECRET_KEY }}
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
       NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
