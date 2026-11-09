@@ -158,9 +158,12 @@ async function rememberVendor(rows: { productId: string; affiliateUrl?: string }
 
 /** 매일 확인 현황: 최근 24시간 안에 가격을 확인한 상품 비율 (0~1) */
 async function coverage(): Promise<{ total: number; checked: number; ratio: number }> {
+  await ensureTries();
+  // 판매종료 의심 상품은 빼고 계산 (확인할 수 없는 상품 때문에 비율이 영영 안 오르는 것 방지)
   const [c] = (await db().execute(sql`
-    SELECT count(*)::int AS total, count(*) FILTER (WHERE updated_at > now() - interval '24 hours')::int AS checked
-    FROM products`)) as unknown as { total: number; checked: number }[];
+    SELECT count(*)::int AS total, count(*) FILTER (WHERE p.updated_at > now() - interval '24 hours')::int AS checked
+    FROM products p LEFT JOIN refresh_tries t ON t.id = p.id
+    WHERE NOT ${ENDED}`)) as unknown as { total: number; checked: number }[];
   return { ...c, ratio: c.checked / Math.max(1, c.total) };
 }
 
@@ -409,6 +412,18 @@ export async function syncCoupangSearch(): Promise<CoupangSyncResult & { keyword
   return result;
 }
 
+/**
+ * 판매종료 의심: 재확인 검색에서 사흘 연속(ENDED_MISSES번) 못 찾았고, 그 뒤로 다른 경로(검색·베스트)에서도 갱신된 적 없는 상품.
+ * 쿠팡 API 로는 '판매 종료'를 직접 알 수 없어서 이렇게 추정 → 매일 대신 7일에 한 번만 다시 찾아봄 (호출 절약).
+ * 다른 경로에서 다시 잡히거나 재확인에서 찾으면 자동으로 해제됨.
+ */
+const ENDED_MISSES = 3;
+const ENDED = sql`(coalesce(t.misses, 0) >= ${ENDED_MISSES} AND t.tried_at > p.updated_at)`;
+async function ensureTries() {
+  await db().execute(sql`CREATE TABLE IF NOT EXISTS refresh_tries (id text PRIMARY KEY, tried_at timestamptz NOT NULL)`);
+  await db().execute(sql`ALTER TABLE refresh_tries ADD COLUMN IF NOT EXISTS misses int NOT NULL DEFAULT 0`);
+}
+
 // products.search_terms 컬럼이 없으면 추가 (한 번만 실제로 실행됨)
 async function ensureSearchTermsColumn() {
   await db().execute(sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS search_terms text`);
@@ -425,13 +440,14 @@ export async function refreshStale(budget = Number(process.env.COUPANG_REFRESH_P
   // budget = 이번 시간에 쓸 검색 호출 수 (상품 하나에 1~2번)
   const result = { tried: 0, found: 0, updated: 0, calls: 0, errors: [] as string[] };
   if (budget <= 0 || !hasCoupangKeys() || (await cooldownUntil())) return result;
-  await db().execute(sql`CREATE TABLE IF NOT EXISTS refresh_tries (id text PRIMARY KEY, tried_at timestamptz NOT NULL)`);
+  await ensureTries();
   // 직접 등록 상품(manual)도 포함 — 이름·이미지·직접 넣은 링크는 그대로 두고 가격만 갱신
   const stale = (await db().execute(sql`
     SELECT p.id, p.name, p.image, p.source, p.category_id, p.category_label FROM products p
     LEFT JOIN refresh_tries t ON t.id = p.id
     WHERE p.updated_at < now() - interval '20 hours'
       AND (t.tried_at IS NULL OR t.tried_at < now() - interval '20 hours')
+      AND NOT (${ENDED} AND t.tried_at > now() - interval '7 days')
     ORDER BY p.updated_at ASC LIMIT ${budget}`)) as unknown as {
     id: string;
     name: string;
@@ -453,11 +469,16 @@ export async function refreshStale(budget = Number(process.env.COUPANG_REFRESH_P
     try {
       result.calls++;
       let hit = ((await searchProducts(short)) ?? []).find((it) => it.productId === p.id);
+      let complete = full === short; // 두 검색어를 다 써봤는지 (예산이 모자라 한 번만 찾았으면 '못 찾음'으로 안 셈)
       if (!hit && full !== short && result.calls < budget) {
+        complete = true;
         result.calls++;
         await sleep(1200);
         hit = ((await searchProducts(full)) ?? []).find((it) => it.productId === p.id);
       }
+      // 연속으로 못 찾은 횟수 (찾으면 0으로 — 옵션이 달라 가격을 안 바꾼 경우도 '판매 중'으로 봄)
+      if (hit || complete)
+        await db().execute(sql`UPDATE refresh_tries SET misses = ${hit ? sql`0` : sql`misses + 1`} WHERE id = ${p.id}`);
       if (hit) {
         result.found++;
         await recordOptions([{ ...hit, from: 'refresh' }]).catch(() => {});
