@@ -441,7 +441,7 @@ export async function refreshStale(budget = Number(process.env.COUPANG_REFRESH_P
     if (result.calls >= budget) break;
     // 이름 앞부분(쉼표 앞, 괄호 뺀 6단어·40자 안쪽)으로 검색 → 못 찾으면 이름 전체로 한 번 더
     const short = p.name.split(',')[0].replace(/[(\[][^)\]]*[)\]]/g, ' ').replace(/\s+/g, ' ').trim().split(' ').slice(0, 6).join(' ').slice(0, 40);
-    const full = p.name.replace(/\s+/g, ' ').trim().slice(0, 80);
+    const full = p.name.replace(/\s+/g, ' ').trim().slice(0, 50); // 쿠팡 검색어 최대 50자
     result.tried++;
     await db().execute(sql`
       INSERT INTO refresh_tries (id, tried_at) VALUES (${p.id}, now())
