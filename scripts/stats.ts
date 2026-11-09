@@ -31,7 +31,10 @@ export async function stats() {
       count(*) FILTER (WHERE t.misses = 1 AND t.tried_at > p.updated_at)::int AS miss1,
       count(*) FILTER (WHERE t.misses = 2 AND t.tried_at > p.updated_at)::int AS miss2
     FROM products p JOIN refresh_tries t ON t.id = p.id`).catch(() => [{ n: 0, miss1: 0, miss2: 0 }]);
+  const [sw] = await q<{ n: number }>(sql`SELECT count(*) FILTER (WHERE switched_at > now() - interval '24 hours')::int AS n FROM vendor_switches`).catch(() => [{ n: 0 }]);
+  const [succ] = await q<{ n: number }>(sql`SELECT count(DISTINCT product_id)::int AS n FROM product_successors`).catch(() => [{ n: 0 }]);
   const [dbsize] = await q<{ mb: number }>(sql`SELECT round(pg_database_size(current_database()) / 1048576.0, 1)::float AS mb`);
   return { 상품: age, 수집경로별: bySource, '기록된 날 수 분포': days, 가격기록: hist, 'DB 전체 MB': dbsize.mb,
-    '판매종료 의심(사흘 연속 못 찾음)': ended[0].n, '하루 못 찾음': ended[0].miss1, '이틀 연속 못 찾음': ended[0].miss2 };
+    '판매종료 의심(사흘 연속 못 찾음)': ended[0].n, '하루 못 찾음': ended[0].miss1, '이틀 연속 못 찾음': ended[0].miss2,
+    '판매자 자동 전환(24시간)': sw.n, '대체 후보 있는 상품': succ.n };
 }

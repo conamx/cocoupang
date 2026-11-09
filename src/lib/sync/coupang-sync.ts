@@ -83,22 +83,69 @@ async function notifyIndexNow(ids: string[], keywords: string[] = []): Promise<s
  */
 const vendorOf = (url?: string) => url?.match(/vendorItemId=(\d+)/)?.[1];
 
-async function splitByVendor<T extends { productId: string; affiliateUrl?: string }>(rows: T[]): Promise<{ price: T[]; other: T[] }> {
+async function splitByVendor<T extends { productId: string; affiliateUrl?: string; name?: string; price?: number }>(
+  rows: T[],
+): Promise<{ price: T[]; other: T[] }> {
   if (rows.length === 0) return { price: [], other: [] };
+  const ids = sql.join(rows.map((r) => sql`${r.productId}`), sql`, `);
   const existing = new Map(
-    ((await db().execute(
-      sql`SELECT id, vendor_item_id FROM products WHERE id IN (${sql.join(rows.map((r) => sql`${r.productId}`), sql`, `)})`,
-    )) as unknown as { id: string; vendor_item_id: string | null }[]).map((r) => [r.id, r.vendor_item_id]),
+    ((await db().execute(sql`
+      SELECT p.id, p.vendor_item_id, p.name, p.source, p.current_price, o.name AS opt_name,
+        p.updated_at < now() - interval '44 hours' AS stale
+      FROM products p LEFT JOIN product_options o ON o.product_id = p.id AND o.vendor_item_id = p.vendor_item_id
+      WHERE p.id IN (${ids})`).catch(() =>
+      db().execute(sql`SELECT id, vendor_item_id, name, source, current_price, null AS opt_name, false AS stale FROM products WHERE id IN (${ids})`),
+    )) as unknown as ExistingRow[]).map((r) => [r.id, r]),
   );
   const price: T[] = [];
   const other: T[] = [];
+  const switches: { id: string; from: string; to: string; url: string; price: number }[] = [];
   for (const r of rows) {
-    const mine = existing.get(r.productId);
+    const cur = existing.get(r.productId);
+    const mine = cur?.vendor_item_id;
     const theirs = vendorOf(r.affiliateUrl);
     if (!mine || !theirs || mine === theirs) price.push(r);
-    else other.push(r);
+    else if (cur && canSwitchVendor(cur, r) && !switches.some((s) => s.id === r.productId)) {
+      switches.push({ id: r.productId, from: mine, to: theirs, url: r.affiliateUrl!, price: r.price! });
+      price.push(r);
+    } else other.push(r);
   }
+  if (switches.length) await switchVendors(switches);
   return { price, other };
+}
+
+type ExistingRow = {
+  id: string;
+  vendor_item_id: string | null;
+  name: string;
+  source: string;
+  current_price: number;
+  opt_name: string | null;
+  stale: boolean;
+};
+const sameText = (a?: string | null, b?: string | null) =>
+  !!a && !!b && a.replace(/\s+/g, ' ').trim().toLowerCase() === b.replace(/\s+/g, ' ').trim().toLowerCase();
+
+/**
+ * 판매자 자동 전환: 같은 상품번호에서 원래 판매자(옵션)가 빠지고 다른 판매자가 대표로 나올 때.
+ * 조건 — 모두 맞아야 바꿈 (가격이 섞이지 않게):
+ *  1) 옵션 이름이 같음 (API 상품명에 옵션이 들어 있음: 원래 옵션 이름 또는 저장된 상품명과 글자가 같아야)
+ *  2) 원래 판매자로 이틀(44시간) 넘게 가격을 못 잡음 → 판매자가 빠진 것으로 봄 (두 판매자가 번갈아 나올 때 왔다 갔다 방지)
+ *  3) 가격이 지금 가격의 절반~두 배 사이
+ */
+function canSwitchVendor(cur: ExistingRow, r: { name?: string; price?: number }) {
+  if (!cur.stale || !r.price || !r.name) return false;
+  if (r.price < cur.current_price * 0.5 || r.price > cur.current_price * 2) return false;
+  return sameText(r.name, cur.opt_name) || (cur.source !== 'manual' && sameText(r.name, cur.name));
+}
+async function switchVendors(list: { id: string; from: string; to: string; url: string; price: number }[]) {
+  await db().execute(sql`CREATE TABLE IF NOT EXISTS vendor_switches (
+    product_id text NOT NULL, from_vendor text NOT NULL, to_vendor text NOT NULL, price integer, switched_at timestamptz NOT NULL DEFAULT now())`);
+  for (const s of list) {
+    // 구매 링크도 새 판매자로 (직접 등록 상품 포함 — 원래 링크의 판매자가 빠졌으므로)
+    await db().execute(sql`UPDATE products SET vendor_item_id = ${s.to}, affiliate_url = ${s.url} WHERE id = ${s.id} AND vendor_item_id = ${s.from}`);
+    await db().execute(sql`INSERT INTO vendor_switches (product_id, from_vendor, to_vendor, price) VALUES (${s.id}, ${s.from}, ${s.to}, ${s.price})`);
+  }
 }
 
 /**
@@ -413,6 +460,41 @@ export async function syncCoupangSearch(): Promise<CoupangSyncResult & { keyword
 }
 
 /**
+ * 판매종료(의심) 상품의 대체 후보: 재확인 검색 결과 중 이름의 핵심이 같고 가격이 비슷한 다른 상품번호.
+ * 자동으로 바꿔치기하지 않음 (정품/벌크/병행수입처럼 이름이 비슷한 다른 상품이 섞일 수 있어서) —
+ * 12월 배포 때 판매종료 페이지에 "지금 판매 중인 같은 상품" 링크로만 보여 줌.
+ *  - 모델명처럼 숫자가 든 단어는 전부 같아야 하고, 나머지 단어도 70% 이상 겹쳐야 함
+ *  - 가격은 마지막 가격의 ±30% 안
+ */
+const words = (s: string) =>
+  s.toLowerCase().replace(/[(\[][^)\]]*[)\]]/g, ' ').split(',')[0].split(/[\s/·]+/).filter((w) => w.length >= 2);
+function looksSame(base: string, cand: string) {
+  const b = words(base);
+  const c = new Set(words(cand));
+  const cText = cand.toLowerCase();
+  const models = b.filter((w) => /\d/.test(w));
+  if (models.some((w) => !cText.includes(w))) return false;
+  const rest = b.filter((w) => !/\d/.test(w));
+  return rest.length === 0 ? models.length > 0 : rest.filter((w) => c.has(w) || cText.includes(w)).length / rest.length >= 0.7;
+}
+async function saveSuccessors(p: { id: string; name: string; current_price: number }, seen: CoupangItem[]) {
+  const picks = [...new Map(seen.map((it) => [it.productId, it])).values()]
+    .filter((it) => it.productId !== p.id && it.price >= p.current_price * 0.7 && it.price <= p.current_price * 1.3)
+    .filter((it) => looksSame(p.name, it.name))
+    .slice(0, 3);
+  if (picks.length === 0) return;
+  await db().execute(sql`CREATE TABLE IF NOT EXISTS product_successors (
+    product_id text NOT NULL, candidate_id text NOT NULL, name text NOT NULL, price integer NOT NULL, image text,
+    affiliate_url text, is_rocket boolean, found_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY (product_id, candidate_id))`);
+  for (const it of picks)
+    await db().execute(sql`
+      INSERT INTO product_successors (product_id, candidate_id, name, price, image, affiliate_url, is_rocket)
+      VALUES (${p.id}, ${it.productId}, ${it.name}, ${it.price}, ${it.image}, ${it.affiliateUrl}, ${it.isRocket})
+      ON CONFLICT (product_id, candidate_id) DO UPDATE SET name = excluded.name, price = excluded.price, image = excluded.image,
+        affiliate_url = excluded.affiliate_url, is_rocket = excluded.is_rocket, found_at = now()`);
+}
+
+/**
  * 판매종료 의심: 재확인 검색에서 사흘 연속(ENDED_MISSES번) 못 찾았고, 그 뒤로 다른 경로(검색·베스트)에서도 갱신된 적 없는 상품.
  * 쿠팡 API 로는 '판매 종료'를 직접 알 수 없어서 이렇게 추정 → 매일 대신 7일에 한 번만 다시 찾아봄 (호출 절약).
  * 다른 경로에서 다시 잡히거나 재확인에서 찾으면 자동으로 해제됨.
@@ -443,7 +525,7 @@ export async function refreshStale(budget = Number(process.env.COUPANG_REFRESH_P
   await ensureTries();
   // 직접 등록 상품(manual)도 포함 — 이름·이미지·직접 넣은 링크는 그대로 두고 가격만 갱신
   const stale = (await db().execute(sql`
-    SELECT p.id, p.name, p.image, p.source, p.category_id, p.category_label FROM products p
+    SELECT p.id, p.name, p.image, p.source, p.category_id, p.category_label, p.current_price FROM products p
     LEFT JOIN refresh_tries t ON t.id = p.id
     WHERE p.updated_at < now() - interval '20 hours'
       AND (t.tried_at IS NULL OR t.tried_at < now() - interval '20 hours')
@@ -455,6 +537,7 @@ export async function refreshStale(budget = Number(process.env.COUPANG_REFRESH_P
     source: string;
     category_id: string;
     category_label: string;
+    current_price: number;
   }[];
 
   for (const p of stale) {
@@ -468,14 +551,19 @@ export async function refreshStale(budget = Number(process.env.COUPANG_REFRESH_P
       ON CONFLICT (id) DO UPDATE SET tried_at = now()`);
     try {
       result.calls++;
-      let hit = ((await searchProducts(short)) ?? []).find((it) => it.productId === p.id);
+      const seen: CoupangItem[] = [...((await searchProducts(short)) ?? [])];
+      let hit = seen.find((it) => it.productId === p.id);
       let complete = full === short; // 두 검색어를 다 써봤는지 (예산이 모자라 한 번만 찾았으면 '못 찾음'으로 안 셈)
       if (!hit && full !== short && result.calls < budget) {
         complete = true;
         result.calls++;
         await sleep(1200);
-        hit = ((await searchProducts(full)) ?? []).find((it) => it.productId === p.id);
+        const more = (await searchProducts(full)) ?? [];
+        seen.push(...more);
+        hit = more.find((it) => it.productId === p.id);
       }
+      // 못 찾았으면 같은 검색 결과에서 '지금 판매 중인 같은 상품' 후보를 저장 (추가 호출 없음, 화면 표시는 12월)
+      if (!hit && complete) await saveSuccessors(p, seen).catch(() => {});
       // 연속으로 못 찾은 횟수 (찾으면 0으로 — 옵션이 달라 가격을 안 바꾼 경우도 '판매 중'으로 봄)
       if (hit || complete)
         await db().execute(sql`UPDATE refresh_tries SET misses = ${hit ? sql`0` : sql`misses + 1`} WHERE id = ${p.id}`);
