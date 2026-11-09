@@ -128,6 +128,9 @@ async function main() {
   } else if (job === 'desc-sample') {
     // 소개글 샘플 (저장 안 함)
     console.log(JSON.stringify(await fillDescriptions(1, false), null, 2));
+  } else if (job === 'state') {
+    // 수집 상태값 (호출 제한 휴식, 아침 수집 완료일, 제미나이 모델 휴식 등)
+    console.log(JSON.stringify(await db().execute(sql`SELECT key, value, updated_at FROM sync_state ORDER BY key`), null, 2));
   } else if (job === 'stats') {
     console.log(JSON.stringify(await stats(), null, 2));
   } else if (job === 'posts-dry' || job === 'posts') {
