@@ -8,7 +8,7 @@
  *  - 소개가 없는 상품에만 저장 (매크로가 먼저 쓴 소개는 건드리지 않음)
  * 사이트에는 상품 페이지가 하루 한 번 새로 만들어질 때 나타남.
  *
- * GEMINI_API_KEY 필요 (GitHub 저장소 Settings → Secrets → Actions). 모델: GEMINI_MODEL (기본 gemini-2.5-flash)
+ * GEMINI_API_KEY 필요 (GitHub 저장소 Settings → Secrets → Actions). 모델: GEMINI_MODELS (쉼표로, 앞에서부터 사용)
  */
 import { sql } from 'drizzle-orm';
 import { db } from '@/db/client';
@@ -16,14 +16,54 @@ import { db } from '@/db/client';
 type Item = { id: string; name: string; category: string; tags: string[]; options: string[] };
 type Result = { intro: string; faq: { q: string; a: string }[] };
 
-const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+// 무료 사용량은 모델마다 따로(하루 20회 정도) → 최신 Flash 모델부터 돌아가며 사용, 다 쓴 모델은 몇 시간 쉼
+const MODELS = (process.env.GEMINI_MODELS || 'gemini-3.8-flash,gemini-3.7-flash,gemini-3.6-flash,gemini-3.5-flash,gemini-2.5-flash')
+  .split(',')
+  .map((m) => m.trim())
+  .filter(Boolean);
+const REST_HOURS = 4;
 
 class GeminiLimit extends Error {}
+class GeminiBusy extends Error {} // 일시적으로 바쁨(5xx) → 다음 모델로
 
+async function restingModels(): Promise<Set<string>> {
+  await db().execute(sql`CREATE TABLE IF NOT EXISTS sync_state (key text PRIMARY KEY, value text, updated_at timestamptz DEFAULT now())`);
+  const rows = (await db().execute(
+    sql`SELECT key FROM sync_state WHERE key LIKE 'gemini_rest:%' AND value::timestamptz > now()`,
+  )) as unknown as { key: string }[];
+  return new Set(rows.map((r) => r.key.slice('gemini_rest:'.length)));
+}
+
+async function rest(model: string) {
+  const until = new Date(Date.now() + REST_HOURS * 3_600_000).toISOString();
+  await db().execute(sql`
+    INSERT INTO sync_state (key, value, updated_at) VALUES (${'gemini_rest:' + model}, ${until}::text, now())
+    ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = now()`);
+}
+
+/** 쓸 수 있는 모델로 호출, 사용량이 다 찬 모델은 쉬게 하고 다음 모델로. 모두 찼으면 GeminiLimit */
 async function gemini(prompt: string): Promise<string> {
+  const resting = await restingModels();
+  for (const model of MODELS) {
+    if (resting.has(model)) continue;
+    try {
+      return await geminiOnce(model, prompt);
+    } catch (e) {
+      if (e instanceof GeminiLimit) {
+        await rest(model);
+        continue;
+      }
+      if (e instanceof GeminiBusy) continue;
+      throw e;
+    }
+  }
+  throw new GeminiLimit('쓸 수 있는 모델 없음 (무료 사용량 소진 또는 모두 바쁨)');
+}
+
+async function geminiOnce(model: string, prompt: string): Promise<string> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error('GEMINI_API_KEY 없음');
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${key}`, {
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -33,7 +73,8 @@ async function gemini(prompt: string): Promise<string> {
   });
   const text = await res.text();
   if (res.status === 429) throw new GeminiLimit(`gemini 429: ${text.slice(0, 160)}`);
-  if (!res.ok) throw new Error(`gemini ${res.status}: ${text.slice(0, 200)}`);
+  if (res.status >= 500) throw new GeminiBusy(`gemini ${model} ${res.status}`);
+  if (!res.ok) throw new Error(`gemini ${model} ${res.status}: ${text.slice(0, 200)}`);
   const j = JSON.parse(text) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
   return j.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
 }
@@ -164,12 +205,12 @@ export async function fillDescriptions(calls: number, apply: boolean, perCall = 
       }
     } catch (e) {
       if (e instanceof GeminiLimit) {
-        out.stopped = '제미나이 무료 사용량 제한 — 다음 시간에 이어서';
+        out.stopped = '제미나이 무료 사용량 모두 소진 — 몇 시간 뒤 이어서';
         break;
       }
       out.errors.push((e as Error).message.slice(0, 160));
     }
-    await new Promise((r) => setTimeout(r, 4000)); // 무료 사용량(분당 호출 수) 여유
+    await new Promise((r) => setTimeout(r, 13_000)); // 무료 분당 호출 수(5회) 여유
   }
   out.errors = out.errors.slice(0, 10);
   return out;
