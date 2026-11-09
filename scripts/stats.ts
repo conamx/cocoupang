@@ -33,8 +33,13 @@ export async function stats() {
     FROM products p JOIN refresh_tries t ON t.id = p.id`).catch(() => [{ n: 0, miss1: 0, miss2: 0 }]);
   const [sw] = await q<{ n: number }>(sql`SELECT count(*) FILTER (WHERE switched_at > now() - interval '24 hours')::int AS n FROM vendor_switches`).catch(() => [{ n: 0 }]);
   const [succ] = await q<{ n: number }>(sql`SELECT count(DISTINCT product_id)::int AS n FROM product_successors`).catch(() => [{ n: 0 }]);
+  // 최근 판매자 전환 10건 (가격이 이상하게 튀지 않았는지 눈으로 확인용)
+  const swList = await q<Record<string, unknown>>(sql`
+    SELECT left(p.name, 40) AS name, s.price AS "전환가", p.current_price AS "지금가", p.lowest_price AS "최저", p.highest_price AS "최고",
+      to_char(s.switched_at AT TIME ZONE 'Asia/Seoul', 'MM-DD HH24:MI') AS at
+    FROM vendor_switches s JOIN products p ON p.id = s.product_id ORDER BY s.switched_at DESC LIMIT 10`).catch(() => []);
   const [dbsize] = await q<{ mb: number }>(sql`SELECT round(pg_database_size(current_database()) / 1048576.0, 1)::float AS mb`);
   return { 상품: age, 수집경로별: bySource, '기록된 날 수 분포': days, 가격기록: hist, 'DB 전체 MB': dbsize.mb,
     '판매종료 의심(사흘 연속 못 찾음)': ended[0].n, '하루 못 찾음': ended[0].miss1, '이틀 연속 못 찾음': ended[0].miss2,
-    '판매자 자동 전환(24시간)': sw.n, '대체 후보 있는 상품': succ.n };
+    '판매자 자동 전환(24시간)': sw.n, '대체 후보 있는 상품': succ.n, '최근 판매자 전환': swList };
 }
