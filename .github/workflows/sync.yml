@@ -40,8 +40,8 @@ jobs:
       COUPANG_SECRET_KEY: ${{ secrets.COUPANG_SECRET_KEY }}
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
       NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
-      COUPANG_SEARCH_PER_RUN: '45' # 매시간 쿠팡 검색 호출 수 (키워드 약 1,080개 → 하루 한 바퀴)
-      COUPANG_REFRESH_PER_RUN: '75' # 매시간 재확인 검색 호출 수 (하루 넘게 확인 못 한 상품, 상품당 1~2번) — 1순위: 모든 상품 매일 가격 확인
+      COUPANG_SEARCH_PER_RUN: '50' # 매시간 쿠팡 검색 호출 수 (키워드 약 1,080개 → 하루 한 바퀴)
+      COUPANG_REFRESH_PER_RUN: '50' # 매시간 재확인 검색 호출 수 (하루 넘게 확인 못 한 상품, 상품당 1~2번) — 1순위: 모든 상품 매일 가격 확인
       COUPANG_MIN_COVERAGE: '0.9' # 24시간 안 확인 비율이 이 아래면 검색으로 새 상품을 받지 않음
       JOB: ${{ inputs.job || (github.event.schedule == '40 22 * * *' && 'coupang' || 'loop') }}
       LOOP_MINUTES: '330' # 이어달리기 한 번의 길이 (5시간 반)
