@@ -16,7 +16,7 @@
 - 상품 페이지에 '가격 확인일'이 오래된 경우 표시 (예: "3일 전 확인") — 재확인 작업과 함께 신뢰도 표시
 
 ## 12월 1일에 다시 켤 것 (배포 없이 설정만)
-- `.github/workflows/sync.yml` 의 `INDEXNOW: 'off'` → `'on'` (11/9 크레딧 절약으로 끔)
+- `.github/workflows/sync.yml` 의 `INDEXNOW: 'new'` → `'on'` (11/9 크레딧 절약으로 새 상품만 알리게 줄임)
 
 ## 배포 전 확인
 - 로컬에서 DB 를 끈 상태로 `npm run build` 성공하는지

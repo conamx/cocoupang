@@ -43,7 +43,7 @@ jobs:
       COUPANG_MIN_COVERAGE: '0.9' # 24시간 안 확인 비율이 이 아래면 검색으로 새 상품을 받지 않음
       JOB: ${{ inputs.job || (github.event.schedule == '40 22 * * *' && 'coupang' || 'loop') }}
       LOOP_MINUTES: '330' # 이어달리기 한 번의 길이 (5시간 반)
-      INDEXNOW: 'off' # 11월은 Netlify 크레딧 절약을 위해 끔 (봇 방문 = 페이지 생성 비용) — 12월 1일에 'on'
+      INDEXNOW: 'new' # 11월은 Netlify 크레딧 절약: 새 상품만 알림, 품목 페이지 매시간 재알림은 끔 (봇 방문 = 페이지 생성 비용) — 12월 1일에 'on'
     steps:
       - name: DB 미설정이면 건너뛰기
         id: guard
