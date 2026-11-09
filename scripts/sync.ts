@@ -100,8 +100,14 @@ async function main() {
       const started = Date.now();
       console.log(`\n===== ${round}회차 ${new Date().toISOString()} =====`);
       try {
-        await runDaily(false); // 아침 수집 시간이 지났는데 오늘 아직 안 돌았으면
-        await runHourly();
+        // 한 회차가 25분을 넘으면(어딘가 응답 없이 멈춤) 기다리지 않고 다음 회차로 → 매시간 수집이 끊기지 않게
+        await Promise.race([
+          (async () => {
+            await runDaily(false); // 아침 수집 시간이 지났는데 오늘 아직 안 돌았으면
+            await runHourly();
+          })(),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('25분 초과 — 다음 회차로')), 25 * 60_000)),
+        ]);
       } catch (e) {
         console.error('이번 회차 실패:', (e as Error).message);
       }

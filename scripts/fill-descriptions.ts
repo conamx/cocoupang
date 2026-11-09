@@ -63,14 +63,20 @@ async function gemini(prompt: string): Promise<string> {
 async function geminiOnce(model: string, prompt: string): Promise<string> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error('GEMINI_API_KEY 없음');
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+  let res: Response;
+  try {
+    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
     method: 'POST',
+    signal: AbortSignal.timeout(60_000), // 응답이 없으면 60초 뒤 포기 → 다음 모델 (멈춰서 수집 루프가 서는 것 방지)
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       generationConfig: { responseMimeType: 'application/json', temperature: 0.9 },
     }),
   });
+  } catch (e) {
+    throw new GeminiBusy(`gemini ${model} 응답 없음/연결 실패: ${(e as Error).name}`);
+  }
   const text = await res.text();
   if (res.status === 429) throw new GeminiLimit(`gemini 429: ${text.slice(0, 160)}`);
   if (res.status >= 500) throw new GeminiBusy(`gemini ${model} ${res.status}`);
