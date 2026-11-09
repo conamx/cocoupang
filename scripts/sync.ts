@@ -8,6 +8,8 @@
  * 필요한 환경변수: DATABASE_URL, COUPANG_ACCESS_KEY, COUPANG_SECRET_KEY
  * 선택: NEXT_PUBLIC_SITE_URL + CRON_SECRET → 수집 후 사이트 캐시를 즉시 갱신
  */
+import { sql } from 'drizzle-orm';
+import { db } from '@/db/client';
 import { refreshStale, syncCoupang, syncCoupangSearch } from '@/lib/sync/coupang-sync';
 import { repairSearchPrices } from './repair-search-prices';
 import { repairOptions } from './repair-options';
@@ -28,6 +30,47 @@ async function revalidate(scope: 'coupang') {
   console.log(`↻ revalidate(${scope}):`, res.status);
 }
 
+const kstDate = (d = new Date()) => new Date(d.getTime() + 9 * 3_600_000).toISOString().slice(0, 10);
+
+async function lastDailyDate(): Promise<string | null> {
+  await db().execute(sql`CREATE TABLE IF NOT EXISTS sync_state (key text PRIMARY KEY, value text, updated_at timestamptz DEFAULT now())`);
+  const r = (await db().execute(sql`SELECT value FROM sync_state WHERE key = 'daily_done'`)) as unknown as { value: string }[];
+  return r[0]?.value ?? null;
+}
+
+/** 매일 아침 수집: 베스트·골드박스 + 오늘 정보글 + 홈·목록 갱신. 한국 시간 7:35 이후 하루 한 번 */
+async function runDaily(force: boolean) {
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9 * 3_600_000);
+  const due = kst.getUTCHours() * 60 + kst.getUTCMinutes() >= 7 * 60 + 35;
+  if (!force && (!due || (await lastDailyDate()) === kstDate(now))) return;
+  const r = await syncCoupang();
+  console.log(JSON.stringify(r, null, 2));
+  if (r.skipped) return;
+  await db().execute(sql`
+    INSERT INTO sync_state (key, value, updated_at) VALUES ('daily_done', ${kstDate(now)}::text, now())
+    ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = now()`);
+  // 오늘 공개할 정보글이 있으면 넣기 (상품 카드는 지금까지 모인 상품으로)
+  try {
+    const p = await insertPosts(true);
+    if (p.posts.length) console.log('정보글:', JSON.stringify(p.posts));
+  } catch (e) {
+    console.error('정보글 넣기 실패:', (e as Error).message);
+  }
+  if (r.upserted > 0) await revalidate('coupang');
+  if (r.collected === 0 && r.errors.length) process.exitCode = 1;
+}
+
+/**
+ * 매시간 수집: 인기 키워드 검색 + 오래 확인 못 한 상품 재확인.
+ * 사이트 캐시 갱신은 하지 않음 — 새 상품 페이지는 첫 방문 때 바로 만들어지고, 목록은 다음 날 아침 수집 때 갱신.
+ */
+async function runHourly() {
+  const s = await syncCoupangSearch();
+  console.log(JSON.stringify(s, null, 2));
+  console.log('재확인:', JSON.stringify(await refreshStale()));
+}
+
 async function main() {
   const job = process.argv[2];
   if (!process.env.DATABASE_URL) {
@@ -37,25 +80,27 @@ async function main() {
   process.env.DATA_SOURCE = 'db';
 
   if (job === 'coupang') {
-    const r = await syncCoupang();
-    console.log(JSON.stringify(r, null, 2));
-    // 오늘 공개할 정보글이 있으면 넣기 (상품 카드는 지금까지 모인 상품으로)
-    try {
-      const p = await insertPosts(true);
-      if (p.posts.length) console.log('정보글:', JSON.stringify(p.posts));
-    } catch (e) {
-      console.error('정보글 넣기 실패:', (e as Error).message);
-    }
-    if (r.upserted > 0) await revalidate('coupang');
-    if (r.collected === 0 && r.errors.length) process.exitCode = 1;
+    // 매일 아침 수집 (예약 실행이 늦게 와서 오늘 이미 돌았으면 건너뜀, 수동 실행은 항상)
+    await runDaily(process.env.GITHUB_EVENT_NAME === 'workflow_dispatch');
   } else if (job === 'search' || job === 'deals') {
-    // 매시간 쿠팡 검색 수집 ('deals' 는 예전 작업 이름 — 커뮤니티 핫딜 수집은 없앰)
-    // 사이트 캐시 갱신은 하지 않음 — 새 상품 페이지는 첫 방문 때 바로 만들어지고,
-    // 목록은 다음 날 아침 coupang 수집 때 함께 갱신됩니다 (Netlify 사용량 절약).
-    const s = await syncCoupangSearch();
-    console.log(JSON.stringify(s, null, 2));
-    // 이어서 오래 확인 못 한 상품 다시 확인
-    console.log('재확인:', JSON.stringify(await refreshStale()));
+    await runHourly();
+  } else if (job === 'loop') {
+    // 이어달리기: GitHub 예약 실행은 바쁠 때 몇 시간씩 빠져서(하루 24번 중 6번만 온 날도 있음)
+    // 한 번 실행되면 약 5시간 반 동안 켜져 있으면서 매시간 직접 수집 → 끝날 때 다음 실행을 스스로 예약(워크플로).
+    const end = Date.now() + Number(process.env.LOOP_MINUTES ?? 330) * 60_000;
+    for (let round = 1; ; round++) {
+      const started = Date.now();
+      console.log(`\n===== ${round}회차 ${new Date().toISOString()} =====`);
+      try {
+        await runDaily(false); // 아침 수집 시간이 지났는데 오늘 아직 안 돌았으면
+        await runHourly();
+      } catch (e) {
+        console.error('이번 회차 실패:', (e as Error).message);
+      }
+      const next = started + 60 * 60_000;
+      if (next + 5 * 60_000 > end) break;
+      await new Promise((r) => setTimeout(r, Math.max(0, next - Date.now())));
+    }
   } else if (job === 'revalidate') {
     // 배포 직후: 빌드 때 빈 틀로 만들어진 홈·목록·사이트맵을 실제 데이터로 다시 만들기
     await revalidate('coupang');
@@ -88,7 +133,7 @@ async function main() {
     console.log(JSON.stringify(r, null, 2));
     if (job === 'repair') await revalidate('coupang');
   } else {
-    console.error('usage: tsx scripts/sync.ts <coupang|search|revalidate|goldbox-raw|repair-dry|repair>');
+    console.error('usage: tsx scripts/sync.ts <loop|coupang|search|stats|inspect|revalidate|posts|goldbox-raw|repair>');
     process.exitCode = 1;
   }
 }

@@ -6,24 +6,32 @@ name: Sync (쿠팡 가격 수집)
 #   DATABASE_URL, COUPANG_ACCESS_KEY, COUPANG_SECRET_KEY, CRON_SECRET, NEXT_PUBLIC_SITE_URL
 on:
   schedule:
-    - cron: '40 22 * * *' # 매일 07:40 KST — 골드박스(07:30 갱신) 직후 쿠팡 가격 수집
-    - cron: '7 * * * *' # 매시 7분 — 쿠팡 인기 키워드 검색 45개
+    # GitHub 예약 실행은 바쁠 때 늦거나 빠짐(하루 24번 중 6번만 온 날도 있음) →
+    # 수집은 'loop'(이어달리기)가 맡음: 한 번 켜지면 5시간 반 동안 매시간 수집하고, 끝날 때 다음 loop 를 스스로 실행.
+    # 아래 예약은 이어달리기가 끊겼을 때 다시 시작시키는 보험 (같은 그룹이라 겹쳐 돌지 않음).
+    - cron: '40 22 * * *' # 매일 07:40 KST — 아침 수집 (loop 안에서 이미 했으면 건너뜀)
+    - cron: '7 * * * *' # 매시 — loop 가 안 돌고 있으면 시작
   workflow_dispatch:
     inputs:
       job:
         description: '실행할 작업'
         type: choice
-        options: [coupang, search, stats, inspect, revalidate, posts-dry, posts, goldbox-raw, repair-dry, repair]
+        options: [loop, coupang, search, stats, inspect, revalidate, posts-dry, posts, goldbox-raw, repair-dry, repair]
         default: coupang
 
+# 수집 작업(loop·search·coupang)은 한 그룹 → 동시에 두 개가 돌며 쿠팡을 중복 호출하지 않음
 concurrency:
-  group: sync-${{ github.event.schedule || inputs.job }}
+  group: sync-${{ (github.event_name == 'schedule' || inputs.job == 'loop' || inputs.job == 'search' || inputs.job == 'coupang') && 'collector' || inputs.job }}
   cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write # 이어달리기: 끝날 때 다음 loop 실행
 
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: ${{ (inputs.job == 'loop' || github.event.schedule == '7 * * * *') && 345 || 30 }}
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       COUPANG_ACCESS_KEY: ${{ secrets.COUPANG_ACCESS_KEY }}
@@ -33,7 +41,8 @@ jobs:
       COUPANG_SEARCH_PER_RUN: '45' # 매시간 쿠팡 검색 호출 수 (키워드 약 1,080개 → 하루 한 바퀴)
       COUPANG_REFRESH_PER_RUN: '45' # 매시간 재확인 검색 호출 수 (하루 넘게 확인 못 한 상품, 상품당 1~2번) — 1순위: 모든 상품 매일 가격 확인
       COUPANG_MIN_COVERAGE: '0.9' # 24시간 안 확인 비율이 이 아래면 검색으로 새 상품을 받지 않음
-      JOB: ${{ inputs.job || (github.event.schedule == '40 22 * * *' && 'coupang' || 'search') }}
+      JOB: ${{ inputs.job || (github.event.schedule == '40 22 * * *' && 'coupang' || 'loop') }}
+      LOOP_MINUTES: '330' # 이어달리기 한 번의 길이 (5시간 반)
     steps:
       - name: DB 미설정이면 건너뛰기
         id: guard
@@ -50,3 +59,8 @@ jobs:
         run: npm ci --no-audit --no-fund
       - if: steps.guard.outputs.skip != '1'
         run: npx tsx scripts/sync.ts $JOB
+      - name: 다음 이어달리기 실행
+        if: success() && env.JOB == 'loop' && steps.guard.outputs.skip != '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X POST "repos/${{ github.repository }}/actions/workflows/sync.yml/dispatches" -f ref="${{ github.ref_name }}" -f "inputs[job]=loop"
