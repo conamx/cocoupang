@@ -18,6 +18,7 @@ import { stats } from './stats';
 import { fillDescriptions } from './fill-descriptions';
 import { inspect } from './inspect';
 import { repairPrelock } from './repair-prelock';
+import { repairSwitches } from './repair-switches';
 import { fetchGoldboxRaw, searchProducts } from '@/lib/coupang';
 
 async function revalidate(scope: 'coupang') {
@@ -149,7 +150,8 @@ async function main() {
     // 1회성 데이터 정리 (repair-dry = 바꿀 개수만 확인) — 옵션 섞임 정리 (repair-search-prices 는 이미 적용됨)
     void repairSearchPrices;
     void repairOptions;
-    const r = await repairPrelock(job === 'repair'); // 현재 정리 작업: 옵션 고정 전 섞인 기록
+    void repairPrelock;
+    const r = await repairSwitches(job === 'repair'); // 현재 정리 작업: 11/9 판매자 자동 전환 되돌리기
     console.log(JSON.stringify(r, null, 2));
     if (job === 'repair') await revalidate('coupang');
   } else {

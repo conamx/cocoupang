@@ -129,13 +129,15 @@ const sameText = (a?: string | null, b?: string | null) =>
 /**
  * 판매자 자동 전환: 같은 상품번호에서 원래 판매자(옵션)가 빠지고 다른 판매자가 대표로 나올 때.
  * 조건 — 모두 맞아야 바꿈 (가격이 섞이지 않게):
- *  1) 옵션 이름이 같음 (API 상품명에 옵션이 들어 있음: 원래 옵션 이름 또는 저장된 상품명과 글자가 같아야)
+ *  1) 이름이 글자까지 같고, 그 이름에 개수가 들어 있음 (", 1개", "30구", "2팩" 등)
+ *     → 11/9 첫 적용 때 "코멧 종이컵 185ml"처럼 개수 없는 이름은 같아도 묶음 수가 달라 가격이 두 배로 튐 → 개수 필수
  *  2) 원래 판매자로 이틀(44시간) 넘게 가격을 못 잡음 → 판매자가 빠진 것으로 봄 (두 판매자가 번갈아 나올 때 왔다 갔다 방지)
- *  3) 가격이 지금 가격의 절반~두 배 사이
+ *  3) 가격이 지금 가격의 ±20% 안 (그보다 크게 다르면 다른 옵션일 가능성이 큼)
  */
+const HAS_COUNT = /\d+\s*(개입|개|입|구|팩|매|롤|병|캔|봉|포|박스|세트|켤레|장|ea)(?![가-힣a-z])/i;
 function canSwitchVendor(cur: ExistingRow, r: { name?: string; price?: number }) {
-  if (!cur.stale || !r.price || !r.name) return false;
-  if (r.price < cur.current_price * 0.5 || r.price > cur.current_price * 2) return false;
+  if (!cur.stale || !r.price || !r.name || !HAS_COUNT.test(r.name)) return false;
+  if (r.price < cur.current_price * 0.8 || r.price > cur.current_price * 1.2) return false;
   return sameText(r.name, cur.opt_name) || (cur.source !== 'manual' && sameText(r.name, cur.name));
 }
 async function switchVendors(list: { id: string; from: string; to: string; url: string; price: number }[]) {
