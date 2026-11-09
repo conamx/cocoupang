@@ -283,7 +283,7 @@ export async function syncCoupang(): Promise<CoupangSyncResult> {
   // 매일 확인 현황 (1순위 지표): 최근 24시간 안에 가격을 확인한 상품 비율
   const [cov] = (await db().execute(sql`
     SELECT count(*)::int AS total, count(*) FILTER (WHERE updated_at > now() - interval '24 hours')::int AS checked
-    FROM products WHERE source <> 'manual'`)) as unknown as { total: number; checked: number }[];
+    FROM products`)) as unknown as { total: number; checked: number }[];
   (result as { coverage?: string }).coverage = `${cov.checked}/${cov.total} (${Math.round((cov.checked / Math.max(1, cov.total)) * 100)}%) 24시간 안 확인`;
 
   return result;
@@ -403,12 +403,20 @@ export async function refreshStale(budget = Number(process.env.COUPANG_REFRESH_P
   const result = { tried: 0, found: 0, updated: 0, calls: 0, errors: [] as string[] };
   if (budget <= 0 || !hasCoupangKeys() || (await cooldownUntil())) return result;
   await db().execute(sql`CREATE TABLE IF NOT EXISTS refresh_tries (id text PRIMARY KEY, tried_at timestamptz NOT NULL)`);
+  // 직접 등록 상품(manual)도 포함 — 이름·이미지·직접 넣은 링크는 그대로 두고 가격만 갱신
   const stale = (await db().execute(sql`
-    SELECT p.id, p.name, p.category_id, p.category_label FROM products p
+    SELECT p.id, p.name, p.image, p.source, p.category_id, p.category_label FROM products p
     LEFT JOIN refresh_tries t ON t.id = p.id
-    WHERE p.source <> 'manual' AND p.updated_at < now() - interval '20 hours'
+    WHERE p.updated_at < now() - interval '20 hours'
       AND (t.tried_at IS NULL OR t.tried_at < now() - interval '20 hours')
-    ORDER BY p.updated_at ASC LIMIT ${budget}`)) as unknown as { id: string; name: string; category_id: string; category_label: string }[];
+    ORDER BY p.updated_at ASC LIMIT ${budget}`)) as unknown as {
+    id: string;
+    name: string;
+    image: string;
+    source: string;
+    category_id: string;
+    category_label: string;
+  }[];
 
   for (const p of stale) {
     if (result.calls >= budget) break;
@@ -433,15 +441,16 @@ export async function refreshStale(budget = Number(process.env.COUPANG_REFRESH_P
         const row = { ...hit, categoryId: p.category_id, categoryLabel: p.category_label };
         const { price } = await splitByVendor([row]);
         if (price.length) {
+          const manual = p.source === 'manual';
           const r = await upsertProducts([
             {
               productId: hit.productId,
-              name: hit.name,
-              image: hit.image,
+              name: manual ? p.name : hit.name,
+              image: manual ? p.image : hit.image,
               price: hit.price,
               categoryId: p.category_id,
               categoryLabel: p.category_label,
-              affiliateUrl: hit.affiliateUrl,
+              affiliateUrl: manual ? undefined : hit.affiliateUrl, // 직접 넣은 파트너스 링크 유지
               isRocket: hit.isRocket,
               source: 'search', // 'search' 는 기존 수집경로·순위·카테고리를 유지함
             },
