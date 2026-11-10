@@ -10,7 +10,7 @@
  */
 import { sql } from 'drizzle-orm';
 import { db } from '@/db/client';
-import { refreshStale, syncCoupang, syncCoupangSearch } from '@/lib/sync/coupang-sync';
+import { hourlyBudget, refreshStale, syncCoupang, syncCoupangSearch } from '@/lib/sync/coupang-sync';
 import { repairSearchPrices } from './repair-search-prices';
 import { repairOptions } from './repair-options';
 import { insertPosts } from './insert-posts';
@@ -68,9 +68,11 @@ async function runDaily(force: boolean) {
  * 사이트 캐시 갱신은 하지 않음 — 새 상품 페이지는 첫 방문 때 바로 만들어지고, 목록은 다음 날 아침 수집 때 갱신.
  */
 async function runHourly() {
-  const s = await syncCoupangSearch();
+  const b = await hourlyBudget();
+  console.log('호출 배분:', JSON.stringify(b));
+  const s = await syncCoupangSearch(b.search);
   console.log(JSON.stringify(s, null, 2));
-  console.log('재확인:', JSON.stringify(await refreshStale()));
+  console.log('재확인:', JSON.stringify(await refreshStale(b.refresh)));
   // 소개글 없는 상품 채우기 (제미나이, 한 번에 3개씩 · 무료 사용량 안에서)
   try {
     const d = await fillDescriptions(Number(process.env.DESC_PER_HOUR ?? 10), true);

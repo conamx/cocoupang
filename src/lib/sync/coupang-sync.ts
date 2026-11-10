@@ -356,8 +356,30 @@ export async function syncCoupang(): Promise<CoupangSyncResult> {
  * 검색 API는 시간당 호출 제한이 있어 한 번에 COUPANG_SEARCH_PER_RUN 개(기본 10)만.
  * 이미 있는 상품은 가격만 갱신하고 카테고리·순위·골드박스 여부는 그대로 둡니다.
  */
-export async function syncCoupangSearch(): Promise<CoupangSyncResult & { keywords: string[] }> {
-  const perRun = Number(process.env.COUPANG_SEARCH_PER_RUN ?? 10);
+/**
+ * 이번 시간 호출 나누기 (총 호출 수는 그대로 = 검색 + 재확인).
+ * 24시간 안 갱신 비율이 목표(COUPANG_MIN_COVERAGE, 90%) 밑이면 새 상품도 안 받는 상태라
+ * 키워드 검색은 대부분 이미 갱신된 상품을 또 확인하는 데 쓰임 → 검색을 줄이고(COUPANG_SEARCH_CATCHUP) 그만큼 밀린 상품 재확인에.
+ * 목표를 넘으면 원래대로 (검색으로 새 상품도 다시 받음).
+ */
+export async function hourlyBudget() {
+  const search = Number(process.env.COUPANG_SEARCH_PER_RUN ?? 10);
+  const refresh = Number(process.env.COUPANG_REFRESH_PER_RUN ?? 30);
+  const min = Number(process.env.COUPANG_MIN_COVERAGE ?? 0.9);
+  const catchup = Math.min(search, Number(process.env.COUPANG_SEARCH_CATCHUP ?? search));
+  const cov = await coverage();
+  const behind = cov.ratio < min;
+  return {
+    search: behind ? catchup : search,
+    refresh: behind ? refresh + (search - catchup) : refresh,
+    coverage: Math.round(cov.ratio * 1000) / 10,
+    mode: behind ? '밀린 상품 우선' : '평소',
+  };
+}
+
+export async function syncCoupangSearch(
+  perRun = Number(process.env.COUPANG_SEARCH_PER_RUN ?? 10),
+): Promise<CoupangSyncResult & { keywords: string[] }> {
   const ks = keywordsForThisHour(perRun);
   const result = { collected: 0, upserted: 0, historyAdded: 0, bySource: {}, errors: [] as string[], keywords: ks.map((k) => k.keyword) };
   if (!hasCoupangKeys()) return { ...result, skipped: '쿠팡 파트너스 키 미설정' };
