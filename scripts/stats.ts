@@ -40,9 +40,15 @@ export async function stats() {
     SELECT left(p.name, 40) AS name, s.price AS "전환가", p.current_price AS "지금가", p.lowest_price AS "최저", p.highest_price AS "최고",
       to_char(s.switched_at AT TIME ZONE 'Asia/Seoul', 'MM-DD HH24:MI') AS at
     FROM vendor_switches s JOIN products p ON p.id = s.product_id ORDER BY s.switched_at DESC LIMIT 10`).catch(() => []);
+  const [oc] = await q<{ n: number; all: number }>(sql`
+    SELECT count(*) FILTER (WHERE changed_at > now() - interval '24 hours')::int AS n, count(*)::int AS all FROM option_changes`).catch(() => [{ n: 0, all: 0 }]);
+  const ocList = await q<Record<string, unknown>>(sql`
+    SELECT left(from_name, 30) AS "전", left(to_name, 30) AS "후", to_char(changed_at AT TIME ZONE 'Asia/Seoul', 'MM-DD HH24:MI') AS at
+    FROM option_changes ORDER BY changed_at DESC LIMIT 10`).catch(() => []);
   const [dbsize] = await q<{ mb: number }>(sql`SELECT round(pg_database_size(current_database()) / 1048576.0, 1)::float AS mb`);
   return { 상품: age, 수집경로별: bySource, '기록된 날 수 분포': days, 가격기록: hist, 'DB 전체 MB': dbsize.mb,
     '판매종료 의심(사흘 연속 못 찾음)': ended[0].n, '하루 못 찾음': ended[0].miss1, '이틀 연속 못 찾음': ended[0].miss2,
     '찾았지만 옵션 달라 못 갱신': ended[0].optdiff, '그중 3일 넘음': ended[0].optdiff3,
-    '판매자 자동 전환(24시간)': sw.n, '대체 후보 있는 상품': succ.n, '최근 판매자 전환': swList };
+    '판매자 자동 전환(24시간)': sw.n, '대체 후보 있는 상품': succ.n, '최근 판매자 전환': swList,
+    '옵션 갈아타기(24시간/전체)': `${oc.n}/${oc.all}`, '최근 옵션 갈아타기': ocList };
 }

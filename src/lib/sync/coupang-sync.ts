@@ -506,6 +506,64 @@ const ENDED = sql`(coalesce(t.misses, 0) >= ${ENDED_MISSES} AND t.tried_at > p.u
 async function ensureTries() {
   await db().execute(sql`CREATE TABLE IF NOT EXISTS refresh_tries (id text PRIMARY KEY, tried_at timestamptz NOT NULL)`);
   await db().execute(sql`ALTER TABLE refresh_tries ADD COLUMN IF NOT EXISTS misses int NOT NULL DEFAULT 0`);
+  await db().execute(sql`ALTER TABLE refresh_tries ADD COLUMN IF NOT EXISTS optdiff int NOT NULL DEFAULT 0`);
+}
+
+/**
+ * 옵션 갈아타기: 재확인에서 상품은 찾는데 사흘 연속 다른 옵션만 대표로 나오면(예: 1개로 고정했는데 검색엔 늘 2개)
+ * 고정한 옵션 가격을 다시 받을 길이 없어 매일 기록이 끊김 → 검색에 나오는 옵션으로 고정을 바꿈.
+ *  - 지금까지 가격 기록은 지우지 않고 보관함(price_history_archive)으로 옮김 (옵션 번호와 함께)
+ *  - 새 옵션의 그래프는 옵션별 기록(option_price_history, 11/7부터, 검색 API 가격만)과
+ *    예전에 이 옵션으로 쌓았다가 보관한 기록으로 다시 채움 → 다른 옵션 가격이 섞이지 않음
+ *  - 나중에 원래 옵션이 다시 대표로 나오면 같은 방식으로 되돌아가고, 보관한 기록도 그대로 돌아옴
+ *  - 바뀐 내역은 option_changes 에 남김 (12월 배포 때 상품 페이지에 "옵션 변경: ○○ → ○○" 표시용)
+ *  - 상품명·구매 링크도 새 옵션으로 (직접 등록 상품은 이름만 유지)
+ */
+const RELOCK_DAYS = 3;
+async function relockOption(
+  p: { id: string; name: string; source: string; vendor_item_id: string | null },
+  hit: CoupangItem,
+) {
+  const from = p.vendor_item_id!;
+  const to = vendorOf(hit.affiliateUrl)!;
+  const manual = p.source === 'manual';
+  await db().transaction(async (tx) => {
+    await tx.execute(sql`CREATE TABLE IF NOT EXISTS price_history_archive (
+      product_id text NOT NULL, vendor_item_id text NOT NULL, price integer NOT NULL, observed_at timestamptz NOT NULL,
+      archived_at timestamptz NOT NULL DEFAULT now())`);
+    await tx.execute(sql`CREATE TABLE IF NOT EXISTS option_changes (
+      product_id text NOT NULL, from_vendor text NOT NULL, to_vendor text NOT NULL, from_name text, to_name text,
+      changed_at timestamptz NOT NULL DEFAULT now())`);
+    // 1) 지금 기록 → 보관함 (원래 옵션 번호로)
+    await tx.execute(sql`
+      INSERT INTO price_history_archive (product_id, vendor_item_id, price, observed_at)
+      SELECT product_id, ${from}, price, observed_at FROM price_history WHERE product_id = ${p.id}`);
+    await tx.execute(sql`DELETE FROM price_history WHERE product_id = ${p.id}`);
+    // 2) 새 옵션 기록으로 다시 채움: 보관했던 이 옵션 기록 + 옵션별 기록(검색 API) → 가격이 바뀐 시점만
+    await tx.execute(sql`
+      INSERT INTO price_history (product_id, price, observed_at)
+      SELECT ${p.id}, price, observed_at FROM (
+        SELECT price, observed_at, lag(price) OVER (ORDER BY observed_at) AS before FROM (
+          SELECT price, observed_at FROM price_history_archive WHERE product_id = ${p.id} AND vendor_item_id = ${to}
+          UNION ALL
+          SELECT price, observed_at FROM option_price_history
+          WHERE product_id = ${p.id} AND vendor_item_id = ${to} AND source IN ('search', 'refresh')
+        ) x
+      ) y WHERE before IS NULL OR before <> price`);
+    await tx.execute(sql`DELETE FROM price_history_archive WHERE product_id = ${p.id} AND vendor_item_id = ${to}`);
+    // 3) 상품 정보: 옵션 고정·링크·이름, 최저·최고는 새 기록 기준 (없으면 지금 가격) — 이어서 평소처럼 가격 저장
+    await tx.execute(sql`
+      UPDATE products SET vendor_item_id = ${to}, affiliate_url = ${hit.affiliateUrl},
+        name = ${manual ? p.name : hit.name}, prev_price = NULL,
+        current_price = coalesce((SELECT price FROM price_history WHERE product_id = ${p.id} ORDER BY observed_at DESC LIMIT 1), ${hit.price}),
+        lowest_price = coalesce((SELECT min(price) FROM price_history WHERE product_id = ${p.id}), ${hit.price}),
+        highest_price = coalesce((SELECT max(price) FROM price_history WHERE product_id = ${p.id}), ${hit.price})
+      WHERE id = ${p.id}`);
+    await tx.execute(sql`
+      INSERT INTO option_changes (product_id, from_vendor, to_vendor, from_name, to_name)
+      VALUES (${p.id}, ${from}, ${to}, ${p.name}, ${hit.name})`);
+    await tx.execute(sql`UPDATE refresh_tries SET optdiff = 0 WHERE id = ${p.id}`);
+  });
 }
 
 // products.search_terms 컬럼이 없으면 추가 (한 번만 실제로 실행됨)
@@ -522,12 +580,14 @@ async function ensureSearchTermsColumn() {
  */
 export async function refreshStale(budget = Number(process.env.COUPANG_REFRESH_PER_RUN ?? 30)) {
   // budget = 이번 시간에 쓸 검색 호출 수 (상품 하나에 1~2번)
-  const result = { tried: 0, found: 0, updated: 0, calls: 0, errors: [] as string[] };
+  const result = { tried: 0, found: 0, updated: 0, relocked: 0, calls: 0, errors: [] as string[] };
   if (budget <= 0 || !hasCoupangKeys() || (await cooldownUntil())) return result;
   await ensureTries();
   // 직접 등록 상품(manual)도 포함 — 이름·이미지·직접 넣은 링크는 그대로 두고 가격만 갱신
   const stale = (await db().execute(sql`
-    SELECT p.id, p.name, p.image, p.source, p.category_id, p.category_label, p.current_price FROM products p
+    SELECT p.id, p.name, p.image, p.source, p.category_id, p.category_label, p.current_price, p.vendor_item_id,
+      coalesce(t.optdiff, 0) AS optdiff, (t.tried_at IS NOT NULL AND t.tried_at > p.updated_at) AS untouched
+    FROM products p
     LEFT JOIN refresh_tries t ON t.id = p.id
     WHERE p.updated_at < now() - interval '20 hours'
       AND (t.tried_at IS NULL OR t.tried_at < now() - interval '20 hours')
@@ -540,6 +600,9 @@ export async function refreshStale(budget = Number(process.env.COUPANG_REFRESH_P
     category_id: string;
     category_label: string;
     current_price: number;
+    vendor_item_id: string | null;
+    optdiff: number;
+    untouched: boolean; // 지난 재확인 뒤로 다른 경로에서도 갱신된 적 없음 (연속 횟수 셀 때 사용)
   }[];
 
   for (const p of stale) {
@@ -568,12 +631,22 @@ export async function refreshStale(budget = Number(process.env.COUPANG_REFRESH_P
       if (!hit && complete) await saveSuccessors(p, seen).catch(() => {});
       // 연속으로 못 찾은 횟수 (찾으면 0으로 — 옵션이 달라 가격을 안 바꾼 경우도 '판매 중'으로 봄)
       if (hit || complete)
-        await db().execute(sql`UPDATE refresh_tries SET misses = ${hit ? sql`0` : sql`misses + 1`} WHERE id = ${p.id}`);
+        await db().execute(sql`UPDATE refresh_tries SET misses = ${hit ? sql`0` : sql`misses + 1`}, optdiff = 0 WHERE id = ${p.id}`);
       if (hit) {
         result.found++;
         await recordOptions([{ ...hit, from: 'refresh' }]).catch(() => {});
         const row = { ...hit, categoryId: p.category_id, categoryLabel: p.category_label };
-        const { price } = await splitByVendor([row]);
+        let { price } = await splitByVendor([row]);
+        if (!price.length) {
+          // 찾았지만 고정한 옵션이 아님 → 연속 일수 세기, 사흘째면 검색에 나오는 옵션으로 갈아타기
+          const days = p.untouched ? p.optdiff + 1 : 1;
+          await db().execute(sql`UPDATE refresh_tries SET optdiff = ${days} WHERE id = ${p.id}`);
+          if (days >= RELOCK_DAYS && p.vendor_item_id && vendorOf(hit.affiliateUrl)) {
+            await relockOption(p, hit);
+            price = [row];
+            result.relocked++;
+          }
+        }
         if (price.length) {
           const manual = p.source === 'manual';
           const r = await upsertProducts([
