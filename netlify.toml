@@ -1,5 +1,7 @@
 [build]
   command = "npm run build"
+  # Next.js 결과 폴더 (설정 화면 값이 비거나 틀려도 빌드가 실패하지 않게 여기서 지정)
+  publish = ".next"
   # 수집 스크립트·키워드·워크플로만 바뀐 푸시는 배포하지 않음 (크레딧 절약).
   # 종료코드 0 = 빌드 건너뜀. 사이트 코드가 하나라도 바뀌면 평소처럼 배포.
   ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- . ':(exclude)scripts' ':(exclude).github' ':(exclude)src/lib/sync/keywords.ts' ':(exclude)src/lib/sync/coupang-sync.ts' ':(exclude)*.md'"
