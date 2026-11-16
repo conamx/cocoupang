@@ -40,10 +40,10 @@ jobs:
       COUPANG_SECRET_KEY: ${{ secrets.COUPANG_SECRET_KEY }}
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
       NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
-      COUPANG_SEARCH_PER_RUN: '50' # 매시간 쿠팡 검색 호출 수 (키워드 약 1,080개 → 하루 한 바퀴)
-      COUPANG_REFRESH_PER_RUN: '70' # 매시간 재확인 검색 호출 수 (하루 넘게 확인 못 한 상품, 상품당 1~2번) — 1순위: 모든 상품 매일 가격 확인
-      COUPANG_SEARCH_CATCHUP: '50' # 꺼둠(=검색 그대로). 11/10~13 검색 20·재확인 100 으로 해 보니 24시간 갱신이 66% → 48% 로 떨어짐 — 검색 1번이 상품 여러 개를 갱신해서 더 효율적
-      COUPANG_MIN_COVERAGE: '0.9' # 24시간 안 확인 비율이 이 아래면 검색으로 새 상품을 받지 않음
+      COUPANG_SEARCH_PER_RUN: '60' # (11/16 50→60, 검색+재확인 시간당 150회) 매시간 쿠팡 검색 호출 수 (키워드 약 1,080개 → 하루 한 바퀴)
+      COUPANG_REFRESH_PER_RUN: '90' # 매시간 재확인 검색 호출 수 (하루 넘게 확인 못 한 상품, 상품당 1~2번) — 1순위: 모든 상품 매일 가격 확인
+      COUPANG_SEARCH_CATCHUP: '60' # 꺼둠(=검색 그대로). 11/10~13 검색 20·재확인 100 으로 해 보니 24시간 갱신이 66% → 48% 로 떨어짐 — 검색 1번이 상품 여러 개를 갱신해서 더 효율적
+      COUPANG_MIN_COVERAGE: '0' # 0 = 갱신 비율과 상관없이 검색에서 새 상품을 늘 받음 (11/16 상품 수 우선으로 변경, 예전 0.9)
       JOB: ${{ inputs.job || (github.event.schedule == '40 22 * * *' && 'coupang' || 'loop') }}
       LOOP_MINUTES: '330' # 이어달리기 한 번의 길이 (5시간 반)
       INDEXNOW: 'off' # 11월은 Netlify 크레딧 절약을 위해 끔 (노출 알림일 뿐 가격 갱신과 무관, 봇 방문 = 페이지 생성 비용) — 12월 1일에 'on'
