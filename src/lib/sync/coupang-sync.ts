@@ -532,6 +532,47 @@ async function ensureTries() {
 }
 
 /**
+ * 재확인 검색 결과의 '덤': 검색 1번에 상품이 최대 10개 오는데, 지금까지는 찾던 상품 하나만 썼음.
+ * 나머지 중 우리 DB 에 있고 12시간 넘게 확인 못 한 상품도 같이 가격 갱신 (키워드 검색 수집과 같은 방식·같은 옵션 고정 규칙).
+ * 직접 등록 상품은 이름이 바뀌지 않게 제외 (재확인 본 작업에서 따로 확인).
+ */
+async function alsoUpdate(items: CoupangItem[], skip: string): Promise<number> {
+  const uniq = [...new Map(items.filter((i) => i.productId !== skip).map((i) => [i.productId, i])).values()];
+  if (uniq.length === 0) return 0;
+  const found = (await db().execute(sql`
+    SELECT id, category_id, category_label FROM products
+    WHERE id IN (${sql.join(uniq.map((i) => sql`${i.productId}`), sql`, `)})
+      AND source <> 'manual' AND updated_at < now() - interval '12 hours'`)) as unknown as {
+    id: string;
+    category_id: string;
+    category_label: string;
+  }[];
+  if (found.length === 0) return 0;
+  const cat = new Map(found.map((r) => [r.id, r]));
+  const rows = uniq
+    .filter((i) => cat.has(i.productId))
+    .map((i) => ({ ...i, categoryId: cat.get(i.productId)!.category_id, categoryLabel: cat.get(i.productId)!.category_label }));
+  await recordOptions(rows.map((r) => ({ ...r, from: 'refresh' }))).catch(() => {});
+  const { price } = await splitByVendor(rows);
+  if (price.length === 0) return 0;
+  const r = await upsertProducts(
+    price.map((x) => ({
+      productId: x.productId,
+      name: x.name,
+      image: x.image,
+      price: x.price,
+      categoryId: x.categoryId,
+      categoryLabel: x.categoryLabel,
+      affiliateUrl: x.affiliateUrl,
+      isRocket: x.isRocket,
+      source: 'search' as const,
+    })),
+  );
+  await rememberVendor(price);
+  return r.upserted;
+}
+
+/**
  * 옵션 갈아타기: 재확인에서 상품은 찾는데 사흘 연속 다른 옵션만 대표로 나오면(예: 1개로 고정했는데 검색엔 늘 2개)
  * 고정한 옵션 가격을 다시 받을 길이 없어 매일 기록이 끊김 → 검색에 나오는 옵션으로 고정을 바꿈.
  *  - 지금까지 가격 기록은 지우지 않고 보관함(price_history_archive)으로 옮김 (옵션 번호와 함께)
@@ -602,7 +643,7 @@ async function ensureSearchTermsColumn() {
  */
 export async function refreshStale(budget = Number(process.env.COUPANG_REFRESH_PER_RUN ?? 30)) {
   // budget = 이번 시간에 쓸 검색 호출 수 (상품 하나에 1~2번)
-  const result = { tried: 0, found: 0, updated: 0, relocked: 0, calls: 0, errors: [] as string[] };
+  const result = { tried: 0, found: 0, updated: 0, relocked: 0, alsoUpdated: 0, calls: 0, errors: [] as string[] };
   if (budget <= 0 || !hasCoupangKeys() || (await cooldownUntil())) return result;
   await ensureTries();
   // 직접 등록 상품(manual)도 포함 — 이름·이미지·직접 넣은 링크는 그대로 두고 가격만 갱신
@@ -651,6 +692,8 @@ export async function refreshStale(budget = Number(process.env.COUPANG_REFRESH_P
       }
       // 못 찾았으면 같은 검색 결과에서 '지금 판매 중인 같은 상품' 후보를 저장 (추가 호출 없음, 화면 표시는 12월)
       if (!hit && complete) await saveSuccessors(p, seen).catch(() => {});
+      // 같은 검색 결과에 같이 나온 다른 상품(우리 DB 에 있고 12시간 넘게 확인 못 한 것)도 함께 갱신 — 추가 호출 없음
+      result.alsoUpdated += await alsoUpdate(seen, p.id).catch(() => 0);
       // 연속으로 못 찾은 횟수 (찾으면 0으로 — 옵션이 달라 가격을 안 바꾼 경우도 '판매 중'으로 봄)
       if (hit || complete)
         await db().execute(sql`UPDATE refresh_tries SET misses = ${hit ? sql`0` : sql`misses + 1`}, optdiff = 0 WHERE id = ${p.id}`);
