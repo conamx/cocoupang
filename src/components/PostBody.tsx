@@ -2,8 +2,10 @@ import { ProductCard } from '@/components/ProductCard';
 import { getProduct } from '@/lib/data';
 import { parseBody } from '@/lib/post-import';
 import type { Product } from '@/lib/types';
+import Link from 'next/link';
+import { findKeyword, keywordPath, keywordSlug } from '@/lib/keyword-url';
 
-/** 정보글 본문: 소제목(##, ###) · 목록(-) · 문단 · [상품:ID] 상품 카드 */
+/** 정보글 본문: 소제목(##, ###) · 목록(-) · 문단 · [상품:ID] 상품 카드 · [품목:계란] 품목 페이지 링크 */
 export async function PostBody({ body }: { body: string }) {
   const blocks = parseBody(body);
   const ids = [...new Set(blocks.flatMap((b) => (b.t === 'products' ? b.ids : [])))];
@@ -30,6 +32,24 @@ export async function PostBody({ body }: { body: string }) {
             <div key={i} className="not-prose my-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
               {list.map((p) => (
                 <ProductCard key={p.id} product={p} showRange />
+              ))}
+            </div>
+          );
+        }
+        if (b.t === 'keywords') {
+          // 품목 페이지가 있는 검색어만 링크 (없는 품목은 조용히 뺀다)
+          const list = b.keywords.filter((w) => findKeyword(keywordSlug(w)));
+          if (!list.length) return null;
+          return (
+            <div key={i} className="not-prose my-4 flex flex-wrap gap-1.5">
+              {list.map((w) => (
+                <Link
+                  key={w}
+                  href={keywordPath(w)}
+                  className="rounded-full bg-white px-3 py-1.5 text-[13px] font-semibold text-blue-700 ring-1 ring-blue-200 hover:bg-blue-50 dark:bg-gray-900 dark:text-blue-300 dark:ring-blue-900"
+                >
+                  {w} 최저가 모아보기 ›
+                </Link>
               ))}
             </div>
           );

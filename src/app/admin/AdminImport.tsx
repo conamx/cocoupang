@@ -9,6 +9,7 @@ import { readXlsxFirstSheet } from '@/lib/xlsx-read';
 import { coupangCategories, etcCategory } from '@/lib/site';
 import { AdminPosts } from './AdminPosts';
 import { AdminProducts } from './AdminProducts';
+import { AdminStats } from './AdminStats';
 
 const CATS = [...coupangCategories, etcCategory];
 const KEY = 'shareinfo-admin-key';
@@ -178,6 +179,7 @@ export function AdminImport() {
     return (
       <div className="space-y-5">
         {tabs}
+        <AdminStats adminKey={key} />
         <AdminProducts adminKey={key} />
       </div>
     );

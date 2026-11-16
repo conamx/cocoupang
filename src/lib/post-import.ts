@@ -220,7 +220,11 @@ export function bodyWithProducts(d: Pick<PostDraft, 'body' | 'products'>): strin
 export type BodyBlock =
   | { t: 'h2' | 'h3' | 'p'; text: string }
   | { t: 'ul'; items: string[] }
-  | { t: 'products'; ids: string[] };
+  | { t: 'products'; ids: string[] }
+  | { t: 'keywords'; keywords: string[] };
+
+// 품목 페이지 링크: 한 줄에 [품목:계란] 또는 [품목:계란, 우유] → "계란 최저가 모아보기" 링크 (연속 줄은 한 묶음)
+const KEYWORD_TAG = /^\[품목\s*:\s*([^\]]+)\]$/;
 
 /** 본문 → 화면 블록 (줄 단위. 붙어 있는 줄은 한 문단, 연속한 상품 표시는 한 줄 카드 묶음) */
 export function parseBody(body: string): BodyBlock[] {
@@ -244,6 +248,15 @@ export function parseBody(body: string): BodyBlock[] {
       const last = out[out.length - 1];
       if (last?.t === 'products') last.ids.push(id);
       else out.push({ t: 'products', ids: [id] });
+      continue;
+    }
+    const kw = line.match(KEYWORD_TAG);
+    if (kw) {
+      flush();
+      const words = kw[1].split(/[,，]/).map((w) => w.trim()).filter(Boolean);
+      const last = out[out.length - 1];
+      if (last?.t === 'keywords') last.keywords.push(...words);
+      else out.push({ t: 'keywords', keywords: words });
       continue;
     }
     const h = line.match(/^(#{2,3})\s+(.+)$/);

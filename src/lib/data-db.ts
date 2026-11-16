@@ -1,6 +1,6 @@
 import { and, desc, eq, gt, ilike, lte, ne, or, sql } from 'drizzle-orm';
 import { db, schema } from '@/db/client';
-import type { Post, Product } from '@/lib/types';
+import type { Post, Product, ProductOption, Successor } from '@/lib/types';
 import type { ProductSections } from '@/lib/data';
 import { coupangCategories, etcCategory } from '@/lib/site';
 import { expandQuery } from '@/lib/search-synonyms';
@@ -35,6 +35,14 @@ function toProduct(r: ProductRow, hist: (typeof schema.priceHistory.$inferSelect
 
 const P = schema.products;
 const byRank = [sql`${P.rank} ASC NULLS LAST`, desc(P.updatedAt)];
+
+/**
+ * 판매 중인 상품만: 재확인에서 사흘 연속 못 찾고(판매종료 의심) 그 뒤로 어디서도 갱신 안 된 상품은 목록·사이트맵에서 뺌.
+ * 상품 페이지는 남김 (가격 기록 + 판매종료 안내). 다시 잡히면 updated_at 이 새로워져 자동으로 목록에 돌아옴.
+ * refresh_tries 는 수집 작업이 만드는 표 (schema 밖).
+ */
+const LIVE = sql`NOT EXISTS (SELECT 1 FROM refresh_tries rt WHERE rt.id = ${P.id} AND rt.misses >= 3 AND rt.tried_at > ${P.updatedAt})`;
+const live = (w?: ReturnType<typeof sql> | ReturnType<typeof eq>) => (w ? and(w, LIVE) : LIVE);
 
 function toPost(r: typeof schema.posts.$inferSelect): Post {
   return {
@@ -84,12 +92,58 @@ function specialFilter(kind: SpecialKind) {
   };
 }
 
+type Q<T> = Promise<T[]>;
+const rows = <T,>(s: ReturnType<typeof sql>): Q<T> =>
+  (db().execute(s) as unknown as Q<T>).catch(() => [] as T[]); // 수집 작업이 만드는 표 — 없으면 빈 값
+
+/** 상품 페이지 추가 정보: 판매종료 여부·대체 후보·옵션 변경·다른 옵션 가격 (한 번에 동시 조회) */
+async function productExtras(p: Product): Promise<Pick<Product, 'ended' | 'successors' | 'optionChange' | 'options'>> {
+  const [endedRow, succ, change, opts] = await Promise.all([
+    rows<{ ended: boolean }>(sql`
+      SELECT (misses >= 3 AND tried_at > ${p.updatedAt}::timestamptz) AS ended FROM refresh_tries WHERE id = ${p.id}`),
+    rows<{ id: string; name: string; price: number; image: string | null; url: string | null; rocket: boolean | null; on_site: boolean }>(sql`
+      SELECT s.candidate_id AS id, coalesce(pr.name, s.name) AS name, coalesce(pr.current_price, s.price) AS price,
+        coalesce(pr.image, s.image) AS image, coalesce(pr.affiliate_url, s.affiliate_url) AS url,
+        coalesce(pr.is_rocket, s.is_rocket) AS rocket, pr.id IS NOT NULL AS on_site
+      FROM product_successors s LEFT JOIN products pr ON pr.id = s.candidate_id
+      WHERE s.product_id = ${p.id} AND s.candidate_id <> ${p.id}
+      ORDER BY s.found_at DESC LIMIT 3`),
+    rows<{ from_name: string | null; to_name: string | null; at: Date }>(sql`
+      SELECT from_name, to_name, changed_at AS at FROM option_changes WHERE product_id = ${p.id} ORDER BY changed_at DESC LIMIT 1`),
+    rows<{ name: string; price: number; seen: Date; vid: string }>(sql`
+      SELECT name, price, last_seen AS seen, vendor_item_id AS vid FROM product_options
+      WHERE product_id = ${p.id} AND last_seen > now() - interval '7 days' ORDER BY price ASC LIMIT 12`),
+  ]);
+  const options: ProductOption[] = opts.map((o) => ({
+    name: o.name,
+    price: o.price,
+    seenAt: new Date(o.seen).toISOString(),
+    current: !!p.vendorItemId && o.vid === p.vendorItemId,
+  }));
+  const successors: Successor[] = succ.map((r) => ({
+    id: r.id,
+    name: r.name,
+    price: r.price,
+    image: r.image ?? undefined,
+    affiliateUrl: r.url ?? undefined,
+    isRocket: !!r.rocket,
+    onSite: r.on_site,
+  }));
+  const c = change[0];
+  return {
+    ended: !!endedRow[0]?.ended,
+    successors,
+    optionChange: c && c.from_name && c.to_name ? { from: c.from_name, to: c.to_name, at: new Date(c.at).toISOString() } : undefined,
+    options,
+  };
+}
+
 export const dbData = {
   async getProducts(categoryId?: string, limit?: number, offset = 0): Promise<Product[]> {
     const q = db()
       .select()
       .from(P)
-      .where(categoryId ? eq(P.categoryId, categoryId) : undefined)
+      .where(live(categoryId ? eq(P.categoryId, categoryId) : undefined))
       .orderBy(...byRank, P.id);
     const rows = limit ? await q.limit(limit).offset(offset) : await q.offset(offset);
     return rows.map((r) => toProduct(r));
@@ -113,6 +167,7 @@ export const dbData = {
     if (!rows[0]) return null;
     const p = toProduct(rows[0].row, hist);
     p.searchTerms = (rows[0].terms ?? '').split('|').filter(Boolean);
+    Object.assign(p, await productExtras(p));
     return p;
   },
   // 품목(검색어) 페이지: 그 검색어로 수집된 상품. 지금 역대 최저가인 것 → 인기순 → 최근 갱신순
@@ -121,7 +176,7 @@ export const dbData = {
     const rows = await db()
       .select()
       .from(P)
-      .where(sql`position(${tag}::text in '|' || coalesce(search_terms, '') || '|') > 0`)
+      .where(live(sql`position(${tag}::text in '|' || coalesce(search_terms, '') || '|') > 0`))
       .orderBy(
         sql`(${P.currentPrice} <= ${P.lowestPrice} AND ${P.highestPrice} > ${P.lowestPrice}) DESC`,
         ...byRank,
@@ -145,7 +200,7 @@ export const dbData = {
     const rows = await db()
       .select()
       .from(P)
-      .where(and(sql`${P.categoryId} = (SELECT category_id FROM ${cur} c)`, ne(P.id, id)))
+      .where(and(sql`${P.categoryId} = (SELECT category_id FROM ${cur} c)`, ne(P.id, id), LIVE))
       .orderBy(sql`abs(${P.currentPrice} - (SELECT current_price FROM ${cur} c))`, ...byRank)
       .limit(limit);
     return rows.map((r) => toProduct(r));
@@ -154,8 +209,8 @@ export const dbData = {
   async getSpecialProducts(kind: SpecialKind, limit: number, offset = 0): Promise<{ products: Product[]; total: number }> {
     const f = specialFilter(kind);
     const [rows, cnt] = await Promise.all([
-      db().select().from(P).where(f.where).orderBy(...f.order, P.id).limit(limit).offset(offset),
-      db().select({ n: sql<number>`count(*)::int` }).from(P).where(f.where),
+      db().select().from(P).where(live(f.where)).orderBy(...f.order, P.id).limit(limit).offset(offset),
+      db().select({ n: sql<number>`count(*)::int` }).from(P).where(live(f.where)),
     ]);
     return { products: rows.map((r) => toProduct(r)), total: Number(cnt[0]?.n ?? 0) };
   },
@@ -165,9 +220,9 @@ export const dbData = {
     const lo = specialFilter('lowest');
     const dr = specialFilter('drops');
     const [goldbox, lowest, drops, ranked] = await Promise.all([
-      d.select().from(P).where(gb.where).orderBy(...gb.order).limit(perSection),
-      d.select().from(P).where(lo.where).orderBy(...lo.order).limit(perSection),
-      d.select().from(P).where(dr.where).orderBy(...dr.order).limit(perSection),
+      d.select().from(P).where(live(gb.where)).orderBy(...gb.order).limit(perSection),
+      d.select().from(P).where(live(lo.where)).orderBy(...lo.order).limit(perSection),
+      d.select().from(P).where(live(dr.where)).orderBy(...dr.order).limit(perSection),
       // 카테고리별 상위 N개를 한 번에 (서브쿼리라 추가 왕복 없음)
       d
         .select()
@@ -176,7 +231,8 @@ export const dbData = {
           sql`${P.id} IN (
             SELECT id FROM (
               SELECT id, row_number() OVER (PARTITION BY category_id ORDER BY rank ASC NULLS LAST, updated_at DESC) AS rn
-              FROM products
+              FROM products p
+              WHERE NOT EXISTS (SELECT 1 FROM refresh_tries rt WHERE rt.id = p.id AND rt.misses >= 3 AND rt.tried_at > p.updated_at)
             ) t WHERE rn <= ${perCategory}
           )`,
         )
@@ -196,11 +252,12 @@ export const dbData = {
     const rows = await db()
       .select({ id: P.categoryId, n: sql<number>`count(*)::int` })
       .from(P)
+      .where(LIVE)
       .groupBy(P.categoryId);
     return Object.fromEntries(rows.map((r) => [r.id, r.n])) as Record<string, number>;
   },
   async getProductIndex() {
-    const rows = await db().select({ id: P.id, name: P.name, updatedAt: P.updatedAt }).from(P);
+    const rows = await db().select({ id: P.id, name: P.name, updatedAt: P.updatedAt }).from(P).where(LIVE);
     return rows.map((r) => ({ id: r.id, name: r.name, updatedAt: r.updatedAt.toISOString() }));
   },
   async getPosts(): Promise<Post[]> {
@@ -228,7 +285,7 @@ export const dbData = {
       db()
         .select({ row: P, terms: sql<string | null>`search_terms` })
         .from(P)
-        .where(or(...terms.map((t) => ilike(P.name, `%${t}%`)), sql`search_terms ILIKE ${like}`))
+        .where(and(or(...terms.map((t) => ilike(P.name, `%${t}%`)), sql`search_terms ILIKE ${like}`), LIVE))
         .orderBy(...byRank)
         .limit(300)
         // 컬럼이 아직 없으면(수집 스크립트가 아직 안 돌았으면) 이름으로만 검색
@@ -236,7 +293,7 @@ export const dbData = {
           db()
             .select({ row: P, terms: sql<string | null>`null` })
             .from(P)
-            .where(or(...terms.map((t) => ilike(P.name, `%${t}%`))))
+            .where(and(or(...terms.map((t) => ilike(P.name, `%${t}%`))), LIVE))
             .orderBy(...byRank)
             .limit(300),
         ),

@@ -38,6 +38,7 @@ export function AdminProducts({ adminKey }: { adminKey: string }) {
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('');
   const [stale, setStale] = useState(false);
+  const [noDesc, setNoDesc] = useState(false);
   const [items, setItems] = useState<AdminProduct[]>([]);
   const [total, setTotal] = useState(0);
   const [edits, setEdits] = useState<Record<string, Edit>>({});
@@ -53,6 +54,7 @@ export function AdminProducts({ adminKey }: { adminKey: string }) {
       setError('');
       const params = new URLSearchParams({ list: '1', q, cat, offset: String(offset), limit: String(PAGE) });
       if (stale) params.set('stale', '1');
+      if (noDesc) params.set('nodesc', '1');
       const res = await fetch(`/api/admin/products?${params}`, { headers: { 'x-admin-key': adminKey } });
       setLoading(false);
       if (!res.ok) return setError(`불러오기 실패 (${res.status}) ${await res.text()}`);
@@ -61,14 +63,14 @@ export function AdminProducts({ adminKey }: { adminKey: string }) {
       setItems((prev) => (offset ? [...prev, ...j.products] : j.products));
       if (!offset) setEdits({});
     },
-    [adminKey, q, cat, stale],
+    [adminKey, q, cat, stale, noDesc],
   );
 
   useEffect(() => {
     void load(0);
     // 필터 변경 시 자동 조회 (검색어는 Enter/버튼으로)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cat, stale]);
+  }, [cat, stale, noDesc]);
 
   const edit = (id: string, patch: Edit) => {
     setEdits((e) => ({ ...e, [id]: { ...e[id], ...patch } }));
@@ -153,6 +155,10 @@ export function AdminProducts({ adminKey }: { adminKey: string }) {
         <label className="flex items-center gap-1 text-[13px] text-gray-600 dark:text-gray-300">
           <input type="checkbox" checked={stale} onChange={(e) => setStale(e.target.checked)} />
           오늘 가격 확인 안 한 상품만
+        </label>
+        <label className="flex items-center gap-1 text-[13px] text-gray-600 dark:text-gray-300">
+          <input type="checkbox" checked={noDesc} onChange={(e) => setNoDesc(e.target.checked)} />
+          소개글 없는 상품만
         </label>
         <span className="ml-auto text-xs text-gray-500">{loading ? '불러오는 중…' : `${total.toLocaleString()}개`}</span>
       </form>

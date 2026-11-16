@@ -12,7 +12,8 @@ import { site } from '@/lib/site';
 import { PriceChart } from '@/components/PriceChart';
 import { ProductCard } from '@/components/ProductCard';
 import { BookmarkButton } from '@/components/BookmarkButton';
-import type { Product } from '@/lib/types';
+import type { Product, ProductOption } from '@/lib/types';
+import { optionLabel, unitPrice } from '@/lib/unit-price';
 
 // 가격은 하루 1회 수집 → 수집 직후 /api/revalidate 로 갱신. 평소엔 하루 캐시(크레딧 절약).
 // 하루마다 갱신 (방문 시 저장된 페이지를 바로 보여주고 뒤에서 새로 만듦) — 가격은 매시간 수집, 페이지는 하루 단위로 반영해 Netlify 사용량 절약
@@ -25,6 +26,22 @@ export async function generateStaticParams() {
 }
 
 /** 제목·설명용 상품명: 첫 쉼표 앞, 너무 길면 자름 */
+const DAY = 86_400_000;
+/** 마지막 가격 확인이 며칠 전인지 (0 = 오늘·어제) */
+const staleDays = (iso: string) => Math.floor((Date.now() - new Date(iso).getTime()) / DAY);
+
+/** 옵션별 가격: 같은 옵션 이름은 가장 싼 값 하나, 단위 가격 붙여서 */
+function optionRows(p: Product) {
+  const byName = new Map<string, ProductOption>();
+  for (const o of p.options ?? []) {
+    const prev = byName.get(o.name);
+    if (!prev || o.current || (!prev.current && o.price < prev.price)) byName.set(o.name, o);
+  }
+  return [...byName.values()]
+    .map((o) => ({ ...o, label: optionLabel(o.name), unit: unitPrice(o.name, o.price) }))
+    .sort((a, b) => a.price - b.price);
+}
+
 const headName = (name: string) => {
   const h = name.split(',')[0].trim() || name;
   return h.length > 42 ? h.slice(0, 41).trim() + '…' : h;
@@ -54,6 +71,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   return {
     title,
     description,
+    // 판매종료(의심) 상품: 페이지는 남기되 검색 결과에서는 빼기 (다시 판매되면 자동으로 원래대로)
+    ...(p.ended ? { robots: { index: false, follow: true } } : {}),
     alternates: { canonical: productPath(p) },
     openGraph: {
       type: 'website',
@@ -92,6 +111,12 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   const terms = (p.searchTerms ?? []).filter((w) => findKeyword(keywordSlug(w))).slice(0, 6);
 
   const validUntil = new Date(new Date(s.checkedAt).getTime() + 2 * 86_400_000).toISOString().slice(0, 10);
+  const stale = staleDays(s.checkedAt);
+  const unit = unitPrice(p.name, p.currentPrice);
+  const options = optionRows(p);
+  const curUnit = options.find((o) => o.current)?.unit ?? unit;
+  // 옵션 변경은 30일 안의 것만 안내
+  const change = p.optionChange && Date.now() - new Date(p.optionChange.at).getTime() < 30 * DAY ? p.optionChange : undefined;
   const jsonLd = [
     {
       '@context': 'https://schema.org',
@@ -99,15 +124,15 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       name: p.name,
       image: [p.image],
       sku: p.id,
-      category: p.categoryLabel,
       description: summary.intro || seoText(p).description,
       offers: {
         '@type': 'Offer',
         price: p.currentPrice,
         priceCurrency: 'KRW',
+        validFrom: isoDate(s.checkedAt), // 이 가격을 확인한 날
         priceValidUntil: validUntil,
         itemCondition: 'https://schema.org/NewCondition',
-        availability: 'https://schema.org/InStock',
+        availability: p.ended ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock',
         url,
         seller: { '@type': 'Organization', name: '쿠팡' },
       },
@@ -220,7 +245,33 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             <span className="text-[34px] font-extrabold leading-none tracking-tight tabular-nums">{won(p.currentPrice)}</span>
             <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${verdictCls}`}>{s.verdict.text}</span>
           </div>
-          <p className="mt-1.5 text-xs text-gray-400">쿠팡 표시가 · {md(s.checkedAt)} 기준 · 쿠폰·카드 할인 제외</p>
+          <p className="mt-1.5 text-xs text-gray-400">
+            쿠팡 표시가 · {md(s.checkedAt)} 기준 · 쿠폰·카드 할인 제외
+            {unit && (
+              <span className="ml-1.5 font-semibold text-gray-500 dark:text-gray-300">
+                · {unit.label} {won(unit.price)}
+              </span>
+            )}
+          </p>
+          {p.ended ? (
+            <div className="mt-2 rounded-lg bg-gray-100 px-2.5 py-2 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200">
+              <b>판매가 끝났거나 일시품절인 것 같아요.</b> {md(s.checkedAt)} 이후로 쿠팡에서 이 상품을 찾지 못했어요. 위 가격은 마지막으로 확인한
+              가격이에요. 다시 판매되면 자동으로 가격 기록을 이어 가요.
+            </div>
+          ) : (
+            stale >= 2 && (
+              <p className="mt-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+                {stale}일 전에 확인한 가격이에요. 지금 가격은 쿠팡에서 확인해 주세요.
+              </p>
+            )
+          )}
+          {change && (
+            <p className="mt-1.5 rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs text-blue-800 dark:bg-blue-950/50 dark:text-blue-300">
+              {md(change.at)}부터 쿠팡 대표 옵션이 바뀌어 <b>{optionLabel(change.to)}</b> 기준으로 기록해요
+              {optionLabel(change.from) !== optionLabel(change.to) ? ` (이전: ${optionLabel(change.from)})` : ''}. 그래프도 바뀐 옵션
+              기준이에요.
+            </p>
+          )}
           {p.source === 'goldbox' && (
             <p className="mt-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
               오늘의 골드박스 상품이에요. 골드박스 할인은 옵션(용량·구성)마다 다를 수 있어서, 할인 가격은 쿠팡에서 확인해 주세요.
@@ -259,6 +310,72 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           <p className="mt-2 text-[11px] font-semibold text-amber-700 dark:text-amber-300">{site.partnersDisclosure}</p>
         </div>
       </div>
+
+      {p.ended && (p.successors?.length ?? 0) > 0 && (
+        <section className="mt-6">
+          <h2 className="mb-2 text-base font-bold">지금 판매 중인 같은 상품</h2>
+          <p className="mb-2 text-xs text-gray-400">이름과 가격대가 비슷한 상품이에요. 구성(정품·벌크·수량)이 다를 수 있으니 확인해 주세요.</p>
+          <div className="divide-y divide-gray-100 rounded-2xl border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-950">
+            {p.successors!.map((c) => {
+              const inner = (
+                <>
+                  <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-gray-50 dark:bg-gray-900">
+                    {c.image && <RemoteImg src={c.image} alt="" size={230} className="h-full w-full object-contain" />}
+                  </div>
+                  <span className="line-clamp-2 min-w-0 flex-1 text-[13px]">{c.name}</span>
+                  <b className="shrink-0 text-sm tabular-nums">{won(c.price)}</b>
+                </>
+              );
+              const cls = 'flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-900';
+              return c.onSite ? (
+                <Link key={c.id} href={productPath({ id: c.id, name: c.name })} className={cls}>
+                  {inner}
+                </Link>
+              ) : (
+                <a key={c.id} href={c.affiliateUrl ?? coupangLink({ id: c.id })} target="_blank" rel="noopener noreferrer nofollow sponsored" className={cls}>
+                  {inner}
+                </a>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {options.length >= 2 && (
+        <section className="mt-6">
+          <h2 className="mb-2 text-base font-bold">옵션별 가격</h2>
+          <div className="rounded-2xl border border-gray-200 bg-white px-4 py-2 dark:border-gray-800 dark:bg-gray-950">
+            <table className="w-full text-[13px]">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                {options.map((o) => {
+                  const save =
+                    o.unit && curUnit && o.unit.label === curUnit.label && o.unit.price < curUnit.price
+                      ? Math.round((1 - o.unit.price / curUnit.price) * 100)
+                      : 0;
+                  return (
+                    <tr key={o.name}>
+                      <td className="py-2 pr-2">
+                        {o.label}
+                        {o.current && <span className="ml-1.5 rounded bg-blue-50 px-1.5 py-0.5 text-[11px] font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-300">이 페이지 기준</span>}
+                      </td>
+                      <td className="whitespace-nowrap py-2 text-right">
+                        <b className="tabular-nums">{won(o.price)}</b>
+                        {o.unit && (
+                          <span className="block text-[11px] text-gray-400">
+                            {o.unit.label} {won(o.unit.price)}
+                            {save >= 3 && <span className="ml-1 font-semibold text-blue-600 dark:text-blue-400">{save}% 절약</span>}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <p className="pb-1 pt-1 text-[11px] text-gray-400">최근 7일 안에 쿠팡에서 확인한 옵션 가격 · 단위 가격은 상품명 기준 참고용</p>
+          </div>
+        </section>
+      )}
 
       {/* 가격이 그대로여도 그래프는 항상 (오늘까지 가로선) */}
       {(

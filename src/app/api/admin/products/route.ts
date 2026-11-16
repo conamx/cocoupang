@@ -53,9 +53,48 @@ const noDb = () => Response.json({ error: 'DB 미연결(DATA_SOURCE=db 필요)' 
 // 한국 날짜 기준 오늘 갱신되지 않은 상품
 const staleToday = sql`(${P.updatedAt} AT TIME ZONE 'Asia/Seoul')::date < (now() AT TIME ZONE 'Asia/Seoul')::date`;
 
+/**
+ * 관리자 현황판 숫자 (?stats=1): 매일 가격 확인이 잘 되고 있는지 한눈에.
+ * refresh_tries·option_changes 는 수집 작업이 만드는 표 — 없으면 0.
+ */
+async function collectStats() {
+  const q = async <T,>(s: SQL) => ((await db().execute(s).catch(() => [])) as unknown as T[])[0];
+  const [age, ended, today, recent] = await Promise.all([
+    q<{ total: number; d1: number; h1: number; desc: number; d3: number }>(sql`
+      SELECT count(*)::int AS total,
+        count(*) FILTER (WHERE updated_at > now() - interval '24 hours')::int AS d1,
+        count(*) FILTER (WHERE updated_at > now() - interval '1 hour')::int AS h1,
+        count(*) FILTER (WHERE updated_at <= now() - interval '3 days')::int AS d3,
+        count(*) FILTER (WHERE description IS NOT NULL)::int AS desc
+      FROM products`),
+    q<{ n: number }>(sql`
+      SELECT count(*)::int AS n FROM products p JOIN refresh_tries t ON t.id = p.id
+      WHERE t.misses >= 3 AND t.tried_at > p.updated_at`),
+    q<{ n: number }>(sql`
+      SELECT count(*)::int AS n FROM products
+      WHERE (updated_at AT TIME ZONE 'Asia/Seoul')::date = (now() AT TIME ZONE 'Asia/Seoul')::date`),
+    q<{ name: string; at: Date }>(sql`SELECT name, updated_at AS at FROM products ORDER BY updated_at DESC LIMIT 1`),
+  ]);
+  const total = age?.total ?? 0;
+  const live = total - (ended?.n ?? 0);
+  return {
+    total,
+    live,
+    ended: ended?.n ?? 0,
+    checked24h: age?.d1 ?? 0,
+    coverage: live ? Math.round(((age?.d1 ?? 0) / live) * 1000) / 10 : 0,
+    lastHour: age?.h1 ?? 0,
+    today: today?.n ?? 0,
+    older3d: age?.d3 ?? 0,
+    withDesc: age?.desc ?? 0,
+    lastUpdate: recent ? { name: recent.name, at: new Date(recent.at).toISOString() } : null,
+  };
+}
+
 export async function GET(req: Request) {
   if (!isAdmin(req)) return unauthorized();
   const url = new URL(req.url);
+  if (url.searchParams.get('stats')) return useDb() ? Response.json(await collectStats()) : noDb();
   if (!url.searchParams.get('list')) return Response.json({ ok: true, db: useDb() });
   if (!useDb()) return noDb();
 
