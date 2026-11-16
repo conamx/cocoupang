@@ -267,9 +267,15 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           )}
           {change && (
             <p className="mt-1.5 rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs text-blue-800 dark:bg-blue-950/50 dark:text-blue-300">
-              {md(change.at)}부터 쿠팡 대표 옵션이 바뀌어 <b>{optionLabel(change.to)}</b> 기준으로 기록해요
-              {optionLabel(change.from) !== optionLabel(change.to) ? ` (이전: ${optionLabel(change.from)})` : ''}. 그래프도 바뀐 옵션
-              기준이에요.
+              {change.from !== change.to ? (
+                <>
+                  {md(change.at)}부터 쿠팡 대표 옵션이 바뀌어 <b>{optionLabel(change.to)}</b> 기준으로 기록해요 (이전:{' '}
+                  {optionLabel(change.from)}).
+                </>
+              ) : (
+                <>{md(change.at)}부터 쿠팡에서 보여 주는 판매 옵션이 바뀌어 그 옵션 기준으로 기록해요.</>
+              )}{' '}
+              그래프도 바뀐 옵션 기준이에요.
             </p>
           )}
           {p.source === 'goldbox' && (
@@ -313,8 +319,8 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
       {p.ended && (p.successors?.length ?? 0) > 0 && (
         <section className="mt-6">
-          <h2 className="mb-2 text-base font-bold">지금 판매 중인 같은 상품</h2>
-          <p className="mb-2 text-xs text-gray-400">이름과 가격대가 비슷한 상품이에요. 구성(정품·벌크·수량)이 다를 수 있으니 확인해 주세요.</p>
+          <h2 className="mb-2 text-base font-bold">비슷한 상품 (지금 판매 중)</h2>
+          <p className="mb-2 text-xs text-gray-400">이름과 가격대가 비슷한 상품이에요. 브랜드·구성(정품·벌크·수량)이 다를 수 있으니 확인해 주세요.</p>
           <div className="divide-y divide-gray-100 rounded-2xl border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-950">
             {p.successors!.map((c) => {
               const inner = (

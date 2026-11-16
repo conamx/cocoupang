@@ -12,7 +12,8 @@ export async function siteCheck() {
   const t = async <T,>(name: string, f: () => Promise<T>, show: (v: T) => unknown) => {
     const s = Date.now();
     try {
-      out[name] = { ok: true, ms: Date.now() - s, ...((show(await f()) as object) ?? {}) };
+      const v = await f();
+      out[name] = { ok: true, ms: Date.now() - s, ...((show(v) as object) ?? {}) };
     } catch (e) {
       out[name] = { ok: false, error: (e as Error).message.slice(0, 300) };
     }
