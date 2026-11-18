@@ -157,10 +157,14 @@ async function switchVendors(list: { id: string; from: string; to: string; url: 
  */
 export async function recordOptions(items: (CoupangItem & { from?: string })[]) {
   // from: 어느 API 에서 온 가격인지 (best·goldbox·search·refresh) — API 마다 가격 기준(일반가·와우가)이 다른지 확인용
-  const rows = new Map<string, { pid: string; vid: string; name: string; price: number; from: string }>();
+  // url: 그 옵션으로 바로 가는 파트너스 링크 (상품 페이지 '옵션별 가격'에서 누르면 그 옵션 화면으로)
+  const rows = new Map<string, { pid: string; vid: string; name: string; price: number; from: string; url: string }>();
   for (const it of items) {
     const vid = vendorOf(it.affiliateUrl);
-    if (vid) rows.set(`${it.productId}:${vid}:${it.from ?? ''}`, { pid: it.productId, vid, name: it.name, price: it.price, from: it.from ?? '' });
+    if (vid)
+      rows.set(`${it.productId}:${vid}:${it.from ?? ''}`, {
+        pid: it.productId, vid, name: it.name, price: it.price, from: it.from ?? '', url: it.affiliateUrl ?? '',
+      });
   }
   if (rows.size === 0) return;
   await db().execute(sql`CREATE TABLE IF NOT EXISTS product_options (
@@ -170,26 +174,28 @@ export async function recordOptions(items: (CoupangItem & { from?: string })[]) 
   await db().execute(sql`CREATE TABLE IF NOT EXISTS option_price_history (
     product_id text NOT NULL, vendor_item_id text NOT NULL, price integer NOT NULL, observed_at timestamptz NOT NULL DEFAULT now())`);
   await db().execute(sql`ALTER TABLE option_price_history ADD COLUMN IF NOT EXISTS source text`);
+  await db().execute(sql`ALTER TABLE product_options ADD COLUMN IF NOT EXISTS url text`);
   await db().execute(sql`CREATE INDEX IF NOT EXISTS option_price_history_idx ON option_price_history (product_id, vendor_item_id, observed_at)`);
   const list = [...rows.values()];
   for (let i = 0; i < list.length; i += 200) {
     const chunk = list.slice(i, i + 200);
     const values = sql.join(
-      chunk.map((r) => sql`(${r.pid}::text, ${r.vid}::text, ${r.name}::text, ${r.price}::int, ${r.from}::text)`),
+      chunk.map((r) => sql`(${r.pid}::text, ${r.vid}::text, ${r.name}::text, ${r.price}::int, ${r.from}::text, ${r.url}::text)`),
       sql`, `,
     );
     // 가격 기록: 같은 옵션·같은 API 의 오늘(한국 날짜) 같은 가격 기록이 없을 때만
     await db().execute(sql`
       INSERT INTO option_price_history (product_id, vendor_item_id, price, source)
-      SELECT v.pid, v.vid, v.price, v.src FROM (VALUES ${values}) AS v(pid, vid, name, price, src)
+      SELECT v.pid, v.vid, v.price, v.src FROM (VALUES ${values}) AS v(pid, vid, name, price, src, url)
       WHERE NOT EXISTS (
         SELECT 1 FROM option_price_history h
         WHERE h.product_id = v.pid AND h.vendor_item_id = v.vid AND h.price = v.price AND coalesce(h.source, '') = v.src
           AND (h.observed_at AT TIME ZONE 'Asia/Seoul')::date = (now() AT TIME ZONE 'Asia/Seoul')::date)`);
     await db().execute(sql`
-      INSERT INTO product_options (product_id, vendor_item_id, name, price)
-      SELECT DISTINCT ON (pid, vid) pid, vid, name, price FROM (VALUES ${values}) AS v(pid, vid, name, price, src)
-      ON CONFLICT (product_id, vendor_item_id) DO UPDATE SET name = excluded.name, price = excluded.price, last_seen = now()`);
+      INSERT INTO product_options (product_id, vendor_item_id, name, price, url)
+      SELECT DISTINCT ON (pid, vid) pid, vid, name, price, nullif(url, '') FROM (VALUES ${values}) AS v(pid, vid, name, price, src, url)
+      ON CONFLICT (product_id, vendor_item_id) DO UPDATE SET name = excluded.name, price = excluded.price, last_seen = now(),
+        url = coalesce(excluded.url, product_options.url)`);
   }
 }
 
