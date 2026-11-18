@@ -45,6 +45,7 @@ export type ProductOption = {
   price: number;
   seenAt: string;
   current: boolean; // 지금 이 페이지가 기록하는 옵션
+  url?: string; // 그 옵션으로 바로 가는 파트너스 링크 (없으면 상품 대표 링크)
 };
 
 export type Deal = {

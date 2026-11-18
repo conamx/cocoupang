@@ -110,8 +110,8 @@ async function productExtras(p: Product): Promise<Pick<Product, 'ended' | 'succe
       ORDER BY s.found_at DESC LIMIT 3`),
     rows<{ from_name: string | null; to_name: string | null; at: Date }>(sql`
       SELECT from_name, to_name, changed_at AS at FROM option_changes WHERE product_id = ${p.id} ORDER BY changed_at DESC LIMIT 1`),
-    rows<{ name: string; price: number; seen: Date; vid: string }>(sql`
-      SELECT name, price, last_seen AS seen, vendor_item_id AS vid FROM product_options
+    rows<{ name: string; price: number; seen: Date; vid: string; url: string | null }>(sql`
+      SELECT name, price, last_seen AS seen, vendor_item_id AS vid, to_jsonb(product_options.*)->>'url' AS url FROM product_options
       WHERE product_id = ${p.id} AND last_seen > now() - interval '7 days' ORDER BY price ASC LIMIT 12`),
   ]);
   const options: ProductOption[] = opts.map((o) => ({
@@ -119,6 +119,7 @@ async function productExtras(p: Product): Promise<Pick<Product, 'ended' | 'succe
     price: o.price,
     seenAt: new Date(o.seen).toISOString(),
     current: !!p.vendorItemId && o.vid === p.vendorItemId,
+    url: o.url ?? undefined,
   }));
   const successors: Successor[] = succ.map((r) => ({
     id: r.id,
