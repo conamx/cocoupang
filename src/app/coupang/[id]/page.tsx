@@ -441,7 +441,8 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-blue-800 transition hover:bg-blue-100 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200"
       >
         <span className="text-[13px]">
-          {s.verdict.tone === 'down' ? `${s.verdict.text} · ` : ''}지금 쿠팡 가격 <b className="tabular-nums">{won(p.currentPrice)}</b>
+          {s.verdict.tone === 'down' ? `${s.verdict.text} · ` : ''}쿠팡 현재가{' '}
+          <b className="whitespace-nowrap tabular-nums">{won(p.currentPrice)}</b>
         </span>
         <span className="shrink-0 text-sm font-bold">쿠팡에서 확인 ›</span>
       </a>
