@@ -589,6 +589,7 @@ async function alsoUpdate(items: CoupangItem[], skip: string): Promise<number> {
  *  - 상품명·구매 링크도 새 옵션으로 (직접 등록 상품은 이름만 유지)
  */
 const RELOCK_DAYS = 3;
+const RELOCK_DAYS_AGAIN = 7; // 최근 30일 안에 이미 갈아탄 상품은 더 오래 지켜본 뒤에만
 async function relockOption(
   p: { id: string; name: string; source: string; vendor_item_id: string | null },
   hit: CoupangItem,
@@ -712,7 +713,17 @@ export async function refreshStale(budget = Number(process.env.COUPANG_REFRESH_P
           // 찾았지만 고정한 옵션이 아님 → 연속 일수 세기, 사흘째면 검색에 나오는 옵션으로 갈아타기
           const days = p.untouched ? p.optdiff + 1 : 1;
           await db().execute(sql`UPDATE refresh_tries SET optdiff = ${days} WHERE id = ${p.id}`);
-          if (days >= RELOCK_DAYS && p.vendor_item_id && vendorOf(hit.affiliateUrl)) {
+          // 왔다 갔다 방지: 최근 30일 안에 이미 옵션을 바꾼 상품은 7일 연속일 때만 다시 바꿈
+          // (11/19 기준 두 번 이상 바뀐 상품이 309개 — 쿠팡 대표 옵션이 번갈아 나오는 상품은 그래프 기준이 자꾸 바뀌었음)
+          const need =
+            days >= RELOCK_DAYS
+              ? ((await db()
+                  .execute(sql`SELECT count(*)::int AS n FROM option_changes WHERE product_id = ${p.id} AND changed_at > now() - interval '30 days'`)
+                  .catch(() => [{ n: 0 }])) as unknown as { n: number }[])[0]?.n > 0
+                ? RELOCK_DAYS_AGAIN
+                : RELOCK_DAYS
+              : RELOCK_DAYS;
+          if (days >= need && p.vendor_item_id && vendorOf(hit.affiliateUrl)) {
             await relockOption(p, hit);
             price = [row];
             result.relocked++;
