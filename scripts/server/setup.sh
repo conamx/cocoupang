@@ -90,7 +90,7 @@ ENV
 fi
 
 say "7/7 사이트 서비스 · 자동 배포 · Caddy 설정"
-curl -fsSL "$RAW/update.sh" -o /usr/local/bin/shareinfo-update && chmod 755 /usr/local/bin/shareinfo-update
+curl -fsSL "$RAW/update.sh?t=$(date +%s)" -o /usr/local/bin/shareinfo-update && chmod 755 /usr/local/bin/shareinfo-update
 
 cat > /etc/systemd/system/shareinfo.service <<UNIT
 [Unit]
