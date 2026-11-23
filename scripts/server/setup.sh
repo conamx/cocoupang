@@ -55,6 +55,22 @@ id shareinfo >/dev/null 2>&1 || useradd --system --create-home --home-dir /var/l
 mkdir -p "$BASE/releases" && chown -R shareinfo:shareinfo "$BASE"
 
 say "6/7 비밀값 (넷리파이 환경변수와 같은 값을 붙여 넣으세요 — 화면에 안 보여도 입력되는 중)"
+# 메모장으로 만들어 scp 로 /tmp/shareinfo.env 에 올려 둔 파일이 있으면 그걸 씀 (붙여넣기가 안 되는 터미널용)
+if [ -f /tmp/shareinfo.env ]; then
+  install -m 600 /tmp/shareinfo.env "$ENVF" && rm -f /tmp/shareinfo.env
+  echo "올려 둔 파일 사용: /tmp/shareinfo.env → $ENVF"
+fi
+if [ -f "$ENVF" ]; then
+  sed -i 's/\r$//' "$ENVF"   # 윈도우 메모장 줄바꿈(\r) 제거 — 안 지우면 DB 주소 끝에 \r 이 붙어 접속 실패
+  grep -q '^DATA_SOURCE=' "$ENVF" || echo 'DATA_SOURCE=db' >> "$ENVF"
+  grep -q '^NEXT_PUBLIC_SITE_URL=' "$ENVF" || echo "NEXT_PUBLIC_SITE_URL=https://$DOMAIN" >> "$ENVF"
+  grep -q '^NODE_ENV=' "$ENVF" || echo 'NODE_ENV=production' >> "$ENVF"
+  echo "값 확인 (글자 수만):"; awk -F= 'NF {print "  " $1 " = " length(substr($0, index($0, "=") + 1)) "자"}' "$ENVF"
+  for k in DATABASE_URL CRON_SECRET ADMIN_PASSWORD; do
+    v=$(grep "^$k=" "$ENVF" | head -1 | cut -d= -f2-)
+    [ -n "$v" ] && [ "$v" != "값" ] || { echo "!! $k 값이 비어 있어요. 메모장 파일을 고쳐서 다시 올리고 설치 명령을 다시 실행하세요."; exit 1; }
+  done
+fi
 if [ ! -f "$ENVF" ]; then
   ask() { local v; read -r -s -p "$1: " v < /dev/tty; echo > /dev/tty; printf '%s' "$v"; }
   DB=$(ask "DATABASE_URL")
@@ -71,8 +87,6 @@ NODE_ENV=production
 NEXT_TELEMETRY_DISABLED=1
 ENV
   echo "저장: $ENVF (root 만 읽을 수 있음)"
-else
-  echo "이미 있음: $ENVF (바꾸려면 sudo nano $ENVF)"
 fi
 
 say "7/7 사이트 서비스 · 자동 배포 · Caddy 설정"
