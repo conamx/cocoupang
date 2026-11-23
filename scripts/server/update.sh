@@ -51,6 +51,17 @@ for i in $(seq 1 30); do curl -fsS -o /dev/null http://127.0.0.1:3000/robots.txt
 curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" "http://127.0.0.1:3000/api/revalidate?scope=coupang" -o /dev/null \
   && echo "revalidate 완료" || echo "revalidate 실패 (서버가 아직 안 떴을 수 있음 — 다음 배포 때 다시)"
 
+# 미리 채우기: 빌드 때 빈 틀로 만든 홈·목록·사이트맵을 지금 한 번씩 열어 실제 데이터로 다시 만들게 함
+# (첫 요청은 빈 틀을 주면서 뒤에서 새로 만들고, 두 번째 요청부터 채워진 페이지 — 그래서 두 번씩)
+for round in 1 2; do
+  for p in / /coupang /coupang/category /coupang/lowest /coupang/drops /coupang/goldbox /sitemap.xml /blog /feed.xml; do
+    curl -s -o /dev/null --max-time 120 "http://127.0.0.1:3000$p" || true
+  done
+  sleep 5
+done
+N=$(curl -s --max-time 120 http://127.0.0.1:3000/sitemap.xml | grep -c '<loc>' || true)
+echo "미리 채우기 완료 (사이트맵 주소 ${N}개)"
+
 # 예전 릴리스는 최근 2개만 남김
 ls -1dt "$BASE"/releases/*/ | tail -n +3 | xargs -r rm -rf
 echo "배포 완료: $NEW"
