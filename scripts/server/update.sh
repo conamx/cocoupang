@@ -35,8 +35,11 @@ while IFS= read -r line || [ -n "$line" ]; do
   case "$line" in ''|\#*) continue ;; esac
   export "${line%%=*}=${line#*=}"
 done < "$ENVF"
-npm ci --no-audit --no-fund
-NODE_OPTIONS=--max-old-space-size=4096 npm run build
+npm ci --no-audit --no-fund --prefer-offline
+# 메모리에 맞춰 빌드 힙 크기 (1GB 서버는 스왑을 써서 천천히)
+MEM_MB=$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)
+HEAP=4096; [ "$MEM_MB" -lt 3000 ] && HEAP=2048
+NODE_OPTIONS=--max-old-space-size=$HEAP npm run build
 echo "$NEW" > .deployed_sha
 chown -R shareinfo:shareinfo "$DIR"
 

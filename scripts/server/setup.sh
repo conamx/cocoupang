@@ -43,9 +43,12 @@ for port in 80 443; do
 done
 netfilter-persistent save >/dev/null
 
-say "5/7 메모리 여유(스왑 2GB) · 실행 계정"
+# 메모리가 작은 서버(AMD 무료 1GB)는 빌드 때 모자라서 스왑을 크게
+MEM_MB=$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)
+SWAP=2G; [ "$MEM_MB" -lt 3000 ] && SWAP=4G
+say "5/7 메모리 여유(스왑 $SWAP, 메모리 ${MEM_MB}MB) · 실행 계정"
 if ! swapon --show | grep -q /swapfile; then
-  fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile >/dev/null && swapon /swapfile
+  fallocate -l "$SWAP" /swapfile && chmod 600 /swapfile && mkswap /swapfile >/dev/null && swapon /swapfile
   grep -q /swapfile /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
 fi
 id shareinfo >/dev/null 2>&1 || useradd --system --create-home --home-dir /var/lib/shareinfo --shell /usr/sbin/nologin shareinfo
@@ -125,7 +128,7 @@ www.$DOMAIN {
 CADDY
 
 systemctl daemon-reload
-echo "첫 빌드 중… (3~6분)"
+echo "첫 빌드 중… (ARM 2코어면 3~6분, AMD 1GB 서버면 20~40분 — 창 닫지 말고 기다리세요)"
 /usr/local/bin/shareinfo-update --force
 systemctl enable --now shareinfo.service
 systemctl enable --now shareinfo-update.timer
