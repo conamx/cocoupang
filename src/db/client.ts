@@ -12,7 +12,17 @@ export function db() {
   if (!url) throw new Error('DATABASE_URL is not set (DATA_SOURCE=db 인데 DB 주소가 없습니다)');
   // 빌드 때 여러 작업자가 동시에 접속하므로 작업자당 연결 수를 줄이고, 막히면 오래 기다리지 않게
   // fetch_types: false — 연결할 때마다 타입 목록을 읽어 오는 준비 쿼리(왕복 2~3번)를 생략 (배열 타입 안 씀)
-  const client = postgres(url, { prepare: false, max: 3, idle_timeout: 20, connect_timeout: 15, fetch_types: false });
+  // 연결 수: 수집 작업(GitHub Actions)·빌드는 3개, 상시 서버(오라클)는 요청이 한 프로세스로 몰리므로 12개
+  // (11/23 서버 이전 직후 봇이 상품 페이지를 몰아서 요청 → 연결 3개 앞에 줄이 끝없이 길어져 페이지가 멈췄음)
+  const max = Number(process.env.DB_POOL_MAX ?? (process.env.GITHUB_ACTIONS || process.env.NEXT_PHASE ? 3 : 12));
+  const client = postgres(url, {
+    prepare: false,
+    max,
+    idle_timeout: 20,
+    connect_timeout: 15,
+    max_lifetime: 60 * 30, // 오래된 연결은 30분마다 새로 (풀러가 조용히 끊은 연결에 매달리지 않게)
+    fetch_types: false,
+  });
   _db = drizzle(client, { schema });
   return _db;
 }
