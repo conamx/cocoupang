@@ -349,36 +349,46 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
       {options.length >= 2 && (
         <section className="mt-6">
-          <h2 className="mb-2 text-base font-bold">옵션별 가격</h2>
-          <div className="rounded-2xl border border-gray-200 bg-white px-4 py-2 dark:border-gray-800 dark:bg-gray-950">
-            <table className="w-full text-[13px]">
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {options.map((o) => {
-                  const save =
-                    o.unit && curUnit && o.unit.label === curUnit.label && o.unit.price < curUnit.price
-                      ? Math.round((1 - o.unit.price / curUnit.price) * 100)
-                      : 0;
-                  return (
-                    <tr key={o.name}>
-                      <td className="py-2 pr-2">
-                        {o.label}
-                        {o.current && <span className="ml-1.5 rounded bg-blue-50 px-1.5 py-0.5 text-[11px] font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-300">이 페이지 기준</span>}
-                      </td>
-                      <td className="whitespace-nowrap py-2 text-right">
-                        <b className="tabular-nums">{won(o.price)}</b>
-                        {o.unit && (
-                          <span className="block text-[11px] text-gray-400">
-                            {o.unit.label} {won(o.unit.price)}
-                            {save >= 3 && <span className="ml-1 font-semibold text-blue-600 dark:text-blue-400">{save}% 절약</span>}
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            <p className="pb-1 pt-1 text-[11px] text-gray-400">최근 7일 안에 쿠팡에서 확인한 옵션 가격 · 단위 가격은 상품명 기준 참고용</p>
+          <div className="mb-2 flex items-baseline justify-between">
+            <h2 className="text-base font-bold">옵션별 가격</h2>
+            <span className="text-[11px] text-gray-400">누르면 쿠팡 해당 옵션으로 이동</span>
+          </div>
+          <div className="divide-y divide-gray-100 rounded-2xl border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-950">
+            {options.map((o) => {
+              const save =
+                o.unit && curUnit && o.unit.label === curUnit.label && o.unit.price < curUnit.price
+                  ? Math.round((1 - o.unit.price / curUnit.price) * 100)
+                  : 0;
+              return (
+                <a
+                  key={o.name}
+                  href={o.current ? affiliate : (o.url ?? affiliate)}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow sponsored"
+                  className="flex items-center gap-2 px-4 py-2.5 text-[13px] transition hover:bg-blue-50/60 dark:hover:bg-blue-950/30"
+                >
+                  <span className="min-w-0 flex-1">
+                    {o.label}
+                    {o.current && (
+                      <span className="ml-1.5 rounded bg-blue-50 px-1.5 py-0.5 text-[11px] font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                        이 페이지 기준
+                      </span>
+                    )}
+                  </span>
+                  <span className="whitespace-nowrap text-right">
+                    <b className="tabular-nums">{won(o.price)}</b>
+                    {o.unit && (
+                      <span className="block text-[11px] text-gray-400">
+                        {o.unit.label} {won(o.unit.price)}
+                        {save >= 3 && <span className="ml-1 font-semibold text-blue-600 dark:text-blue-400">{save}% 절약</span>}
+                      </span>
+                    )}
+                  </span>
+                  <span className="shrink-0 text-xs font-bold text-blue-600 dark:text-blue-400">쿠팡 ›</span>
+                </a>
+              );
+            })}
+            <p className="px-4 pb-2 pt-1.5 text-[11px] text-gray-400">최근 7일 안에 쿠팡에서 확인한 옵션 가격 · 단위 가격은 상품명 기준 참고용</p>
           </div>
         </section>
       )}
@@ -422,6 +432,20 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           </div>
         </section>
       )}
+
+      {/* 그래프를 본 다음 바로 누를 수 있게 한 번 더 */}
+      <a
+        href={affiliate}
+        target="_blank"
+        rel="noopener noreferrer nofollow sponsored"
+        className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-blue-800 transition hover:bg-blue-100 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200"
+      >
+        <span className="text-[13px]">
+          {s.verdict.tone === 'down' ? `${s.verdict.text} · ` : ''}쿠팡 현재가{' '}
+          <b className="whitespace-nowrap tabular-nums">{won(p.currentPrice)}</b>
+        </span>
+        <span className="shrink-0 text-sm font-bold">쿠팡에서 확인 ›</span>
+      </a>
 
       {summary.intro && (
         <section className="mt-8">
