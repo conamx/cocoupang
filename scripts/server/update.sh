@@ -8,6 +8,20 @@ ENVF=/etc/shareinfo.env
 LOCK=/run/shareinfo-update.lock
 exec 9>"$LOCK"; flock -n 9 || exit 0
 
+# 이 스크립트도 GitHub 의 최신 버전으로 스스로 바꿈 (서버에 다시 들어가지 않아도 배포 방식 개선이 반영되게)
+SELF=/usr/local/bin/shareinfo-update
+RAW=https://raw.githubusercontent.com/conamx/cocoupang/main/scripts/server
+if [ "${SHAREINFO_SELF_UPDATED:-}" != 1 ] && [ -w "$SELF" ]; then
+  TMP=$(mktemp)
+  if curl -fsSL "$RAW/update.sh?t=$(date +%s)" -o "$TMP" && bash -n "$TMP" && ! cmp -s "$TMP" "$SELF"; then
+    install -m 755 "$TMP" "$SELF"; rm -f "$TMP"
+    flock -u 9
+    echo "배포 스크립트 새 버전으로 교체 → 다시 실행"
+    SHAREINFO_SELF_UPDATED=1 exec "$SELF" "$@"
+  fi
+  rm -f "$TMP"
+fi
+
 FORCE=${1:-}
 NEW=$(git ls-remote "$REPO" refs/heads/main | cut -c1-40)
 CUR=$(cat "$BASE/current/.deployed_sha" 2>/dev/null || true)
