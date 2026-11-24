@@ -46,7 +46,7 @@ jobs:
       COUPANG_MIN_COVERAGE: '0' # 0 = 갱신 비율과 상관없이 검색에서 새 상품을 늘 받음 (11/16 상품 수 우선으로 변경, 예전 0.9)
       JOB: ${{ inputs.job || (github.event.schedule == '40 22 * * *' && 'coupang' || 'loop') }}
       LOOP_MINUTES: '330' # 이어달리기 한 번의 길이 (5시간 반)
-      INDEXNOW: 'off' # 11월은 Netlify 크레딧 절약을 위해 끔 (노출 알림일 뿐 가격 갱신과 무관, 봇 방문 = 페이지 생성 비용) — 12월 1일에 'on'
+      INDEXNOW: 'on' # 새 상품·품목 페이지를 네이버·빙에 바로 알림 (11/24 오라클 서버로 옮겨 페이지 생성 비용이 없어져 다시 켬)
     steps:
       - name: DB 미설정이면 건너뛰기
         id: guard
