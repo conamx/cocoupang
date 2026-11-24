@@ -39,11 +39,23 @@ const buildStub = new Proxy({} as Repo, {
   get: (_, k) => (k === 'then' || !(k in EMPTY) ? undefined : async () => EMPTY[k as keyof Repo]),
 });
 
+// 모든 DB 조회에 시간 제한을 씌운 저장소 (한 번 만들어 재사용)
+let guarded: Repo | null = null;
+
 async function repo(): Promise<Repo> {
   if (isBuild()) return buildStub;
+  if (guarded) return guarded;
   // 지연 import: 시드 모드에서는 DB 드라이버를 아예 로드하지 않음.
-  const { dbData } = await import('@/lib/data-db');
-  return dbData;
+  const [{ dbData }, { withDbTimeout }] = await Promise.all([import('@/lib/data-db'), import('@/db/client')]);
+  // 응답 없는 조회가 페이지를 영원히 붙잡지 않게: 시간 제한을 넘기면 오류 → 다음 요청이 새 연결로 다시 만듦
+  guarded = new Proxy(dbData, {
+    get(t, k) {
+      const f = (t as Record<PropertyKey, unknown>)[k];
+      if (typeof f !== 'function') return f;
+      return (...args: unknown[]) => withDbTimeout((f as (...a: unknown[]) => Promise<unknown>).apply(t, args), String(k));
+    },
+  }) as Repo;
+  return guarded;
 }
 
 // 인기순(수집 순위) → 최신순. 목록용이라 DB 모드에선 가격 이력을 싣지 않습니다.

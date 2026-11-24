@@ -22,6 +22,27 @@ if [ "${SHAREINFO_SELF_UPDATED:-}" != 1 ] && [ -w "$SELF" ]; then
   rm -f "$TMP"
 fi
 
+# 재시작이 오래 걸리지 않게: 멈춘 사이트는 10초만 기다리고 끔 (기본 90초 → 그동안 사이트가 꺼져 있었음)
+DROP=/etc/systemd/system/shareinfo.service.d/stop.conf
+if [ ! -f "$DROP" ]; then
+  mkdir -p "$(dirname "$DROP")"; printf '[Service]\nTimeoutStopSec=10\n' > "$DROP"; systemctl daemon-reload
+fi
+
+# 자동 점검 (5분마다): DB 까지 다녀오는 /api/health 가 두 번 연속 응답이 없거나 503 이면 사이트 재시작.
+# 11/24 — DB 연결이 전부 응답 없이 묶여 캐시 안 된 상세페이지가 계속 멈춘 일이 있어서. 404(점검 주소가 아직 없는 버전)는 정상으로 봄.
+if systemctl is-active -q shareinfo; then
+  bad=0
+  for i in 1 2; do
+    code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 http://127.0.0.1:3000/api/health || true)
+    case "$code" in 000|503|504) bad=$((bad + 1)); sleep 10 ;; *) break ;; esac
+  done
+  if [ "$bad" -ge 2 ]; then
+    echo "자동 점검: 사이트가 DB 응답을 못 받음 → 재시작"
+    logger -t shareinfo-watchdog "health check failed twice, restarting shareinfo"
+    systemctl restart shareinfo || true
+  fi
+fi
+
 FORCE=${1:-}
 NEW=$(git ls-remote "$REPO" refs/heads/main | cut -c1-40)
 CUR=$(cat "$BASE/current/.deployed_sha" 2>/dev/null || true)

@@ -5,6 +5,7 @@ import * as schema from './schema';
 // Postgres 연결 (운영: DATA_SOURCE=db).
 // 모듈 로드만으로 연결을 만들지 않도록 지연 초기화합니다.
 let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
+let _client: ReturnType<typeof postgres> | null = null;
 
 export function db() {
   if (_db) return _db;
@@ -23,8 +24,39 @@ export function db() {
     max_lifetime: 60 * 30, // 오래된 연결은 30분마다 새로 (풀러가 조용히 끊은 연결에 매달리지 않게)
     fetch_types: false,
   });
+  _client = client;
   _db = drizzle(client, { schema });
   return _db;
+}
+
+/**
+ * DB 연결을 통째로 버리고 다음 조회 때 새로 만듦.
+ * 11/24 확인: 상시 서버에서 연결 12개가 응답 없는 채로 전부 묶여, 캐시 안 된 상세페이지가 영원히 멈췄음
+ * (DB 는 0.5초 안에 답하는데 사이트를 재시작하기 전까지 안 풀림). 시간 제한에 걸리면 이걸로 풀어 줌.
+ */
+export function resetDb() {
+  const old = _client;
+  _db = null;
+  _client = null;
+  if (old) old.end({ timeout: 0 }).catch(() => {});
+}
+
+/** DB 조회에 시간 제한 — 넘으면 연결을 새로 만들고 오류로 끝냄 (멈춘 채 기다리지 않게) */
+export const DB_TIMEOUT_MS = Number(process.env.DB_TIMEOUT_MS ?? 20000);
+export async function withDbTimeout<T>(p: PromiseLike<T>, label = 'db', ms = DB_TIMEOUT_MS): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      console.error(`[db] ${label} ${ms}ms 안에 응답 없음 → 연결 새로 만듦`);
+      resetDb();
+      reject(new Error(`DB timeout: ${label}`));
+    }, ms);
+  });
+  try {
+    return await Promise.race([Promise.resolve(p), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export { schema };
