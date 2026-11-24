@@ -29,15 +29,18 @@ class GeminiBusy extends Error {} // 일시적으로 바쁨(5xx) → 다음 모�
 async function restingModels(): Promise<Set<string>> {
   await db().execute(sql`CREATE TABLE IF NOT EXISTS sync_state (key text PRIMARY KEY, value text, updated_at timestamptz DEFAULT now())`);
   const rows = (await db().execute(
-    sql`SELECT key FROM sync_state WHERE key LIKE 'gemini_rest:%' AND value::timestamptz > now()`,
+    sql`SELECT key FROM sync_state WHERE key LIKE ${restPrefix() + '%'} AND value::timestamptz > now()`,
   )) as unknown as { key: string }[];
-  return new Set(rows.map((r) => r.key.slice('gemini_rest:'.length)));
+  return new Set(rows.map((r) => r.key.slice(restPrefix().length)));
 }
+
+// 쉬는 기록은 키별로 (키 끝 4자리) — 키를 새로 바꾸면 예전 키가 소진돼 쉬던 기록에 막히지 않게 (11/24)
+const restPrefix = () => `gemini_rest:${(process.env.GEMINI_API_KEY ?? '').slice(-4)}:`;
 
 async function rest(model: string) {
   const until = new Date(Date.now() + REST_HOURS * 3_600_000).toISOString();
   await db().execute(sql`
-    INSERT INTO sync_state (key, value, updated_at) VALUES (${'gemini_rest:' + model}, ${until}::text, now())
+    INSERT INTO sync_state (key, value, updated_at) VALUES (${restPrefix() + model}, ${until}::text, now())
     ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = now()`);
 }
 
