@@ -17,13 +17,19 @@ type Item = { id: string; name: string; category: string; tags: string[]; option
 type Result = { intro: string; faq: { q: string; a: string }[] };
 
 // 무료 사용량은 모델마다 따로(하루 20회 정도) → 최신 Flash 모델부터 돌아가며 사용, 다 쓴 모델은 몇 시간 쉼
-const MODELS = (process.env.GEMINI_MODELS || 'gemini-3.8-flash,gemini-3.7-flash,gemini-3.6-flash,gemini-3.5-flash,gemini-2.5-flash')
+// 11/25 확인: 무료 한도는 모델마다 '하루 20회' → lite 모델까지 넣어 하루 쓸 수 있는 횟수를 늘림 (글은 아래 자동 검사로 거름)
+const MODELS = (
+  process.env.GEMINI_MODELS ||
+  'gemini-3.8-flash,gemini-3.7-flash,gemini-3.6-flash,gemini-3.5-flash,gemini-2.5-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-2.5-flash-lite'
+)
   .split(',')
   .map((m) => m.trim())
   .filter(Boolean);
-const REST_HOURS = 4;
-
-class GeminiLimit extends Error {}
+class GeminiLimit extends Error {
+  constructor(msg: string, readonly daily = false) {
+    super(msg);
+  }
+}
 class GeminiBusy extends Error {} // 일시적으로 바쁨(5xx) → 다음 모델로
 
 async function restingModels(): Promise<Set<string>> {
@@ -34,11 +40,22 @@ async function restingModels(): Promise<Set<string>> {
   return new Set(rows.map((r) => r.key.slice(restPrefix().length)));
 }
 
-// 쉬는 기록은 키별로 (키 끝 4자리) — 키를 새로 바꾸면 예전 키가 소진돼 쉬던 기록에 막히지 않게 (11/24)
-const restPrefix = () => `gemini_rest:${(process.env.GEMINI_API_KEY ?? '').slice(-4)}:`;
+// 쉬는 기록은 키별로 (키 끝 4자리) — 키를 새로 바꾸면 예전 키가 소진돼 쉬던 기록에 막히지 않게 (11/24). v2: 11/25 쉬는 규칙 변경 (예전 4시간 기록은 무시)
+const restPrefix = () => `gemini_rest:v2:${(process.env.GEMINI_API_KEY ?? '').slice(-4)}:`;
 
-async function rest(model: string) {
-  const until = new Date(Date.now() + REST_HOURS * 3_600_000).toISOString();
+/**
+ * 하루 한도(PerDay)에 걸린 모델 → 한도가 다시 차는 시각(미국 서부 자정 = 한국 오후 5시, UTC 08:00)까지 쉼.
+ * 분당 한도 등 잠깐 걸린 것 → 2분만 쉼. (예전엔 무조건 4시간 쉬어서, 한도가 남은 모델도 계속 놀았음 — 11/25)
+ */
+async function rest(model: string, daily: boolean) {
+  const now = new Date();
+  let untilMs = now.getTime() + 2 * 60_000;
+  if (daily) {
+    const reset = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 8, 5));
+    if (reset.getTime() <= now.getTime()) reset.setUTCDate(reset.getUTCDate() + 1);
+    untilMs = reset.getTime();
+  }
+  const until = new Date(untilMs).toISOString();
   await db().execute(sql`
     INSERT INTO sync_state (key, value, updated_at) VALUES (${restPrefix() + model}, ${until}::text, now())
     ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = now()`);
@@ -53,7 +70,7 @@ async function gemini(prompt: string): Promise<string> {
       return await geminiOnce(model, prompt);
     } catch (e) {
       if (e instanceof GeminiLimit) {
-        await rest(model);
+        await rest(model, e.daily);
         continue;
       }
       if (e instanceof GeminiBusy) continue;
@@ -81,7 +98,7 @@ async function geminiOnce(model: string, prompt: string): Promise<string> {
     throw new GeminiBusy(`gemini ${model} 응답 없음/연결 실패: ${(e as Error).name}`);
   }
   const text = await res.text();
-  if (res.status === 429) throw new GeminiLimit(`gemini 429: ${text.slice(0, 160)}`);
+  if (res.status === 429) throw new GeminiLimit(`gemini ${model} 429`, /PerDay/i.test(text));
   if (res.status >= 500) throw new GeminiBusy(`gemini ${model} ${res.status}`);
   if (!res.ok) throw new Error(`gemini ${model} ${res.status}: ${text.slice(0, 200)}`);
   const j = JSON.parse(text) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
